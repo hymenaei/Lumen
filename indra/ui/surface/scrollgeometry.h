@@ -9,9 +9,6 @@
 #include "types.h"
 
 namespace radia::ui {
-enum class ScrollbarAxis : std::uint8_t { NoneValue, Horizontal, Vertical };
-enum class ScrollbarPart : std::uint8_t { NoneValue, Track, Thumb, StartArrow, EndArrow, Corner };
-
 struct ScrollbarAxisInput {
     float scrollOffset = 0.f;
     float scrollExtent = 0.f;

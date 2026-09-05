@@ -276,7 +276,7 @@ NativeScrollbarPaintStyle NativeAppearanceBase::scrollbarPaintStyle(const Native
     const Color track = request.colors.automatic ? kDefaultScrollbarTrackColor : request.colors.track;
     const Color baseThumb = request.colors.automatic ? kDefaultScrollbarThumbColor : request.colors.thumb;
     const NativeScrollbarState& state = axis == ScrollbarAxis::Vertical ? request.vertical : request.horizontal;
-    const ScrollbarAxisGeometry& geometry = axis == ScrollbarAxis::Vertical ? request.geometry.vertical : request.geometry.horizontal;
+    const NativeScrollbarAxisGeometry& geometry = axis == ScrollbarAxis::Vertical ? request.geometry.vertical : request.geometry.horizontal;
     const Color glyph = baseThumb.withAlpha(std::min(1.f, baseThumb.a + .05f));
     return {track, scrollbarStateColor(baseThumb, state, ScrollbarPart::Thumb), scrollbarStateColor(glyph, state, ScrollbarPart::StartArrow),
             scrollbarStateColor(glyph, state, ScrollbarPart::EndArrow), std::min(geometry.thumb.w, geometry.thumb.h) * .5f};

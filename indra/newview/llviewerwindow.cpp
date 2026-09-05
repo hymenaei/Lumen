@@ -1768,16 +1768,16 @@ void LLViewerWindow::handleMouseMove(LLWindow *window,  LLCoordGL pos, MASK mask
         saveLastMouse(mousePoint);
     }
 
-    if (pointerCaptured
-        && (x < 0 || y < 0 || x > getWindowWidthScaled() || y > getWindowHeightScaled())
-        && gPipeline.hasRenderDebugFeatureMask(LLPipeline::RENDER_DEBUG_FEATURE_UI))
-    {
-        if (mUIRuntime) {
-            mUIRuntime->pointerMove(
-                translatePointerInput(
-                    NativePointerInput{static_cast<F32>(x), static_cast<F32>(y), NativePointerButton::NoButton, static_cast<U32>(mask), 1, 0.f, 0.f}));
-        }
-    }
+    if (gPipeline.hasRenderDebugFeatureMask(LLPipeline::RENDER_DEBUG_FEATURE_UI))
+        mPendingPointerMove = NativePointerInput{
+            static_cast<F32>(mCurrentMousePoint.mX),
+            static_cast<F32>(mCurrentMousePoint.mY),
+            NativePointerButton::NoButton,
+            static_cast<U32>(mask),
+            1,
+            0.f,
+            0.f,
+        };
 
     mWindow->showCursorFromMouseMove();
 
@@ -1818,6 +1818,7 @@ void LLViewerWindow::handleMouseLeave(LLWindow *window)
     }
 
     if (mUIRuntime) mUIRuntime->pointerLeave();
+    mPendingPointerMove.reset();
 
     if (gFocusMgr.getMouseCapture() != NULL)
     {
@@ -1907,6 +1908,7 @@ void LLViewerWindow::handleFocus(LLWindow *window)
 void LLViewerWindow::handleFocusLost(LLWindow *window)
 {
     if (mUIRuntime) mUIRuntime->focusLost();
+    mPendingPointerMove.reset();
 
     gFocusMgr.setAppHasFocus(false);
     //LLModalDialog::onAppFocusLost();
@@ -1938,6 +1940,7 @@ void LLViewerWindow::handleFocusLost(LLWindow *window)
 void LLViewerWindow::handleMouseCaptureLost(LLWindow*)
 {
     if (mUIRuntime) mUIRuntime->pointerCaptureLost();
+    mPendingPointerMove.reset();
 }
 
 
@@ -3940,10 +3943,12 @@ void LLViewerWindow::updateUI()
 
     bool handled = false;
     bool hoverHandled = false;
-    if (mUIRuntime && uiVisible && (mMouseInWindow || mUIRuntime->hasPointerCapture())) {
-        const InputDispatchResult result = mUIRuntime->pointerMove(translatePointerInput(NativePointerInput{
-            static_cast<F32>(x), static_cast<F32>(y), NativePointerButton::NoButton, static_cast<U32>(mask), 1,
-            static_cast<F32>(mCurrentRawMouseDelta.mX) / mDisplayScale.mV[VX], static_cast<F32>(mCurrentRawMouseDelta.mY) / mDisplayScale.mV[VY]}));
+    const bool pointerCaptured = mUIRuntime && mUIRuntime->hasPointerCapture();
+    if (const std::optional<NativePointerInput> pending = takePointerMoveForFrame(
+            mPendingPointerMove, uiVisible, mMouseInWindow, pointerCaptured, static_cast<U32>(mask),
+            static_cast<F32>(mCurrentRawMouseDelta.mX) / mDisplayScale.mV[VX], static_cast<F32>(mCurrentRawMouseDelta.mY) / mDisplayScale.mV[VY]);
+        mUIRuntime && pending) {
+        const InputDispatchResult result = mUIRuntime->pointerMove(translatePointerInput(*pending));
         handled = result.handled;
         hoverHandled = result.handled;
         if (result.cursor) mWindow->setCursor(translateCursor(*result.cursor));

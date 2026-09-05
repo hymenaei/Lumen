@@ -1395,7 +1395,7 @@ const detail::StylePropertyDefinition kPropertyDefinitions[] = {
     {"color", compileColor, applyColor, resetColor, specifyInherited<InheritedStyleProperty::Color>, inheritColor,
      StylePropertyImpact::Paint | StylePropertyImpact::Inherited, false, InheritedStyleProperty::Color},
     {"text-overflow", compileTextOverflow, applyMember<&ComputedStyle::textOverflow>, resetMember<&ComputedStyle::textOverflow>, nullptr,
-     copyMember<&ComputedStyle::textOverflow>, StylePropertyImpact::Paint},
+     copyMember<&ComputedStyle::textOverflow>, StylePropertyImpact::Layout | StylePropertyImpact::Paint},
     {"text-wrap", compileTextWrap, applyMember<&ComputedStyle::textWrap>, resetMember<&ComputedStyle::textWrap>,
      specifyInherited<InheritedStyleProperty::TextWrap>, inheritMember<InheritedStyleProperty::TextWrap, &ComputedStyle::textWrap>,
      StylePropertyImpact::Layout | StylePropertyImpact::Inherited, false, InheritedStyleProperty::TextWrap},

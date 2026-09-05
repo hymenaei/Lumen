@@ -10,7 +10,6 @@
 #include <optional>
 #include "path.h"
 #include "style/computedstyle.h"
-#include "surface/scrollgeometry.h"
 #include "types.h"
 
 namespace radia::ui {
@@ -27,8 +26,26 @@ struct NativeScrollbarClip {
     EdgeInsets borderWidth;
 };
 
+struct NativeScrollbarAxisGeometry {
+    ScrollbarAxis axis = ScrollbarAxis::NoneValue;
+    Rect bounds;
+    Rect track;
+    Rect thumb;
+    Rect startArrow;
+    Rect endArrow;
+    bool visible = false;
+    bool reversed = false;
+};
+
+struct NativeScrollbarPaintGeometry {
+    NativeScrollbarAxisGeometry horizontal;
+    NativeScrollbarAxisGeometry vertical;
+    Rect corner;
+    bool hasCorner = false;
+};
+
 struct NativeScrollbarPaintRequest {
-    ScrollGeometry geometry;
+    NativeScrollbarPaintGeometry geometry;
     NativeScrollbarMetrics metrics{};
     ScrollbarColors colors;
     NativeScrollbarClip clip;

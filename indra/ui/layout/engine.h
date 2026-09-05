@@ -67,6 +67,7 @@ private:
     static void arrangeNode(Element& node, LayoutPass& pass);
     static void arrangeNode(const layout_detail::LayoutChildRef& node, LayoutPass& pass);
     static void arrangePseudoElement(PseudoElement& node, LayoutPass& pass);
+    static void prepareTextPaint(Element& node, LayoutPass& pass);
     static void setArrangedRect(const layout_detail::LayoutChildRef& node, const Rect& rect);
     static void arrangeRow(Element& node, const ComputedStyle& parentStyle, const Rect& content, const Rect& available,
                            std::vector<ChildLayout>& children, LayoutPass& pass);

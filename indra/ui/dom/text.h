@@ -8,8 +8,11 @@
 #include <memory>
 #include <string>
 #include "dom/element.h"
+#include "style/computedstyle.h"
 
 namespace radia::ui {
+class LayoutEngine;
+class LayoutPass;
 class TextLayout;
 
 class Text : public Node {
@@ -32,9 +35,15 @@ public:
 
 private:
     friend class detail::NodeMutation;
+    friend class LayoutEngine;
+    friend class LayoutPass;
+
+    void setLayoutStyle(ComputedStyle style);
+    void preparePaint(const TextMetrics& metrics, const StyleSheet& styleSheet) const;
 
     std::string mValue;
     std::unique_ptr<TextLayout> mLayout;
+    ComputedStyle mLayoutStyle;
     Rect mRect;
 };
 } // namespace radia::ui

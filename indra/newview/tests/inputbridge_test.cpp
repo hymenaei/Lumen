@@ -6,6 +6,7 @@
 #include "linden_common.h"
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <optional>
 #include "indra_constants.h"
 #include "inputbridge.h"
 #include "llkeyboard.h"
@@ -25,6 +26,7 @@ using radia::viewer::ui::NativeKeyInput;
 using radia::viewer::ui::NativePointerButton;
 using radia::viewer::ui::NativePointerInput;
 using radia::viewer::ui::NativeScrollInput;
+using radia::viewer::ui::takePointerMoveForFrame;
 using radia::viewer::ui::translateCursor;
 using radia::viewer::ui::translateKeyInput;
 using radia::viewer::ui::translatePointerInput;
@@ -70,4 +72,27 @@ TEST(InputBridgeTest, MapsCursorStylesToNativeCursors) {
     EXPECT_EQ(translateCursor(CursorStyle::Pointer), UI_CURSOR_HAND);
     EXPECT_EQ(translateCursor(CursorStyle::EastWestResize), UI_CURSOR_SIZEWE);
     EXPECT_EQ(translateCursor(CursorStyle::Auto), UI_CURSOR_ARROW);
+}
+
+TEST(InputBridgeTest, CoalescesPointerMovesUntilFrameDrain) {
+    std::optional<NativePointerInput> pending;
+    pending = NativePointerInput{10.f, 20.f, NativePointerButton::NoButton, MASK_SHIFT, 1, 0.f, 0.f};
+    pending = NativePointerInput{12.f, 24.f, NativePointerButton::NoButton, MASK_CONTROL, 1, 0.f, 0.f};
+
+    const std::optional<NativePointerInput> sample = takePointerMoveForFrame(pending, true, true, false, MASK_CONTROL, 3.5f, -4.f);
+    ASSERT_TRUE(sample.has_value());
+    EXPECT_FLOAT_EQ(sample->x, 12.f);
+    EXPECT_FLOAT_EQ(sample->y, 24.f);
+    EXPECT_EQ(sample->modifiers, MASK_CONTROL);
+    EXPECT_FLOAT_EQ(sample->dx, 3.5f);
+    EXPECT_FLOAT_EQ(sample->dy, -4.f);
+    EXPECT_FALSE(pending.has_value());
+}
+
+TEST(InputBridgeTest, DropsOutsideWindowMoveWithoutCapture) {
+    std::optional<NativePointerInput> pending;
+    pending = NativePointerInput{12.f, 24.f, NativePointerButton::NoButton, 0, 1, 0.f, 0.f};
+
+    EXPECT_FALSE(takePointerMoveForFrame(pending, true, false, false, 0, 1.f, 2.f).has_value());
+    EXPECT_FALSE(pending.has_value());
 }

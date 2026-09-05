@@ -68,6 +68,7 @@ using radia::ui::kPointerUpEvent;
 using radia::ui::kScrollEvent;
 using radia::ui::kWheelEvent;
 using radia::ui::LayoutDirection;
+using radia::ui::NativeScrollbarAxisGeometry;
 using radia::ui::NodePtr;
 using radia::ui::PaintCommand;
 using radia::ui::PaintCommandKind;
@@ -79,7 +80,6 @@ using radia::ui::PreparedBindingResult;
 using radia::ui::RecordingPaintContext;
 using radia::ui::Rect;
 using radia::ui::ResourceSnapshot;
-using radia::ui::ScrollbarAxisGeometry;
 using radia::ui::ScrollbarMode;
 using radia::ui::ScrollbarPart;
 using radia::ui::setAuthoredEventCall;
@@ -792,7 +792,7 @@ TEST(SurfaceTest, RtlScrollbarHitTestingAndHorizontalTrackClicks) {
     EXPECT_TRUE(surface->hasPointerCapture());
     EXPECT_TRUE(surface->pointerUp({verticalPoint, PointerButton::Left}));
 
-    const ScrollbarAxisGeometry& horizontal = request.geometry.horizontal;
+    const NativeScrollbarAxisGeometry& horizontal = request.geometry.horizontal;
     const float initialThumbX = horizontal.thumb.x;
     const Vec2 leftTrackPoint{horizontal.track.left() + horizontal.track.w * .25f, horizontal.track.y + horizontal.track.h * .5f};
     ASSERT_FALSE(horizontal.thumb.contains(leftTrackPoint));
@@ -976,7 +976,7 @@ TEST(SurfaceTest, ScrollbarTrackClickContinuesIntoThumbDrag) {
     const PaintCommand* command = recording.last(PaintCommandKind::Scrollbar);
     ASSERT_NE(command, nullptr);
     ASSERT_TRUE(command->scrollbar.has_value());
-    const ScrollbarAxisGeometry& geometry = command->scrollbar->geometry.vertical;
+    const NativeScrollbarAxisGeometry& geometry = command->scrollbar->geometry.vertical;
     const Vec2 trackPoint{geometry.track.x + geometry.track.w * .5f, geometry.track.bottom() + geometry.track.h * .25f};
     const Vec2 dragPoint{trackPoint.x, geometry.bounds.bottom()};
 

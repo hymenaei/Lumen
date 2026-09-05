@@ -47,11 +47,13 @@
 #include "llinitparam.h"
 #include "lltrace.h"
 #include "llsnapshotmodel.h"
+#include "nativeinput.h"
 
 #include <boost/signals2.hpp>
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace radia::viewer::ui {
     class Runtime;
@@ -532,6 +534,7 @@ private:
     LLVector2       mDisplayScale;
 
     LLCoordGL       mCurrentMousePoint;         // last mouse position in GL coords
+    std::optional<radia::viewer::ui::NativePointerInput> mPendingPointerMove;
     LLCoordGL       mLastMousePoint;        // Mouse point at last frame.
     LLCoordGL       mCurrentMouseDelta;     //amount mouse moved this frame
     LLCoordGL       mCurrentRawMouseDelta;

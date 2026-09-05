@@ -36,7 +36,7 @@ Rect snapped(const Rect& rect) {
     return {left, bottom, std::max(0.f, right - left), std::max(0.f, top - bottom)};
 }
 
-Rect snappedScrollbarArrow(const ScrollbarAxisGeometry& axis, bool start) {
+Rect snappedScrollbarArrow(const NativeScrollbarAxisGeometry& axis, bool start) {
     const Rect arrow = start ? axis.startArrow : axis.endArrow;
     if (!axis.visible || arrow.empty()) return {};
 
@@ -635,7 +635,7 @@ void OpenGLPaintContext::Impl::paintNativeScrollbar(const NativeScrollbarPaintRe
     const auto paintArrow = [this, clip](const Rect& rect, ScrollbarAxis axis, bool pointsPositive, Color color) {
         geometry.drawArrow(rect, axis, pointsPositive, color, clip);
     };
-    const auto paintAxis = [&](const ScrollbarAxisGeometry& axis) {
+    const auto paintAxis = [&](const NativeScrollbarAxisGeometry& axis) {
         if (!axis.visible) return;
         const NativeScrollbarPaintStyle style = appearance.scrollbarPaintStyle(request, axis.axis);
         paint(axis.bounds, style.track, 0.f);

@@ -38,7 +38,17 @@ Vec2 Text::intrinsicSize(const StyleSheet& styleSheet, const ComputedStyle& styl
     return owner ? mLayout->measure(textMetrics, style, styleSheet, *owner, constraints.width) : Vec2{};
 }
 
-void Text::paint(PaintContext& context, const ComputedStyle& style, const StyleSheet* styleSheet, const Element& owner) const {
-    mLayout->paint(context, insetRect(mRect, style.padding), style, styleSheet, owner);
+void Text::setLayoutStyle(ComputedStyle style) {
+    mLayoutStyle = std::move(style);
+}
+
+void Text::preparePaint(const TextMetrics& metrics, const StyleSheet& styleSheet) const {
+    const Element* owner = parentNode() ? parentNode()->asElement() : nullptr;
+    if (owner) mLayout->preparePaint(metrics, mLayoutStyle, styleSheet, *owner, mRect.w);
+}
+
+void Text::paint(PaintContext& context, const ComputedStyle& parentStyle, const StyleSheet* styleSheet, const Element& owner) const {
+    const TextPaintStyle paintStyle{parentStyle.color, parentStyle.colorLightDark, parentStyle.textDecoration, parentStyle.textAlign};
+    mLayout->paintPrepared(context, insetRect(mRect, mLayoutStyle.padding), mLayoutStyle, paintStyle, styleSheet, owner);
 }
 } // namespace radia::ui

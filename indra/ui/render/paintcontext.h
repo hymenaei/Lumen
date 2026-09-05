@@ -23,6 +23,7 @@ struct TopBorderGap {
 class PaintContext : public TextMetrics, public NativeControlPaintContext {
 public:
     virtual ~PaintContext() = default;
+    virtual const TextMetrics& textMetrics() const { return *this; }
 
     virtual void beginFrame(const PaintTarget&) {}
     virtual void endFrame() {}

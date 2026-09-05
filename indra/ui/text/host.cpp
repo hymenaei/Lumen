@@ -69,25 +69,16 @@ void mixLength(std::size_t& hash, const Length& value) {
     mixStyleValue(hash, value.percent);
 }
 
-void mixColor(std::size_t& hash, const Color& value) {
-    mixStyleValue(hash, value.r);
-    mixStyleValue(hash, value.g);
-    mixStyleValue(hash, value.b);
-    mixStyleValue(hash, value.a);
-}
-
 std::size_t textStyleFingerprint(const ComputedStyle& style) {
     std::size_t hash = 0;
     mixStyleValue(hash, static_cast<std::size_t>(style.fontFamily));
     mixStyleValue(hash, style.fontSize);
     mixStyleValue(hash, static_cast<std::size_t>(style.fontWeight));
     mixStyleValue(hash, static_cast<std::size_t>(style.fontItalic));
-    mixStyleValue(hash, static_cast<std::size_t>(style.textDecoration));
     mixStyleValue(hash, static_cast<std::size_t>(style.lineHeight.has_value()));
     if (style.lineHeight) mixLength(hash, *style.lineHeight);
     mixLength(hash, style.letterSpacing);
     mixLength(hash, style.wordSpacing);
-    mixColor(hash, style.color);
     return hash;
 }
 
@@ -121,9 +112,46 @@ Vec2 TextLayout::measure(const TextMetrics& metrics, const ComputedStyle& style,
     return cachedLayout(metrics, style, &styleSheet, owner, availableWidth, false, false).size;
 }
 
+void TextLayout::preparePaint(const TextMetrics& metrics, const ComputedStyle& style, const StyleSheet& styleSheet, const Element& owner,
+                              float availableWidth) const {
+    (void)cachedLayout(metrics, style, &styleSheet, owner, availableWidth, true, true);
+}
+
 void TextLayout::paint(PaintContext& context, const Rect& rect, const ComputedStyle& style, const StyleSheet* styleSheet,
                        const Element& owner) const {
-    const detail::TextLayout& layout = cachedLayout(context, style, styleSheet, owner, rect.w, true, true);
+    const TextMetrics& metrics = context.textMetrics();
+    const detail::TextLayout& layout = cachedLayout(metrics, style, styleSheet, owner, rect.w, true, true);
+    const TextPaintStyle paintStyle{style.color, style.colorLightDark, style.textDecoration, style.textAlign};
+    paintLayout(context, rect, paintStyle, layout, metrics);
+}
+
+void TextLayout::paintPrepared(PaintContext& context, const Rect& rect, const ComputedStyle& layoutStyle, const TextPaintStyle& paintStyle,
+                               const StyleSheet* styleSheet, const Element& owner) const {
+    const TextMetrics& metrics = context.textMetrics();
+    const bool widthMatches = mCachedLayoutWidthSet && mCachedLayoutWidth == rect.w;
+    const std::uint64_t styleSheetGeneration = styleSheet ? styleSheet->generation() : 0;
+    const bool matches = mCachedLayoutValid
+        && mCachedContentGeneration == mContentGeneration
+        && mCachedMetrics == &metrics
+        && mCachedMetricsGeneration == metrics.generation()
+        && mCachedStyleSheet == styleSheet
+        && mCachedStyleSheetGeneration == styleSheetGeneration
+        && mCachedOwner == &owner
+        && widthMatches
+        && mCachedLayoutVisualOrder
+        && mCachedLayoutOverflow
+        && mCachedLayoutStyleFingerprint == textLayoutFingerprint(layoutStyle, true, true)
+        && mCachedStyleFingerprint == textStyleFingerprint(layoutStyle);
+    if (matches) {
+        paintLayout(context, rect, paintStyle, mCachedLayout, *mCachedMetrics);
+        return;
+    }
+    const detail::TextLayout& layout = cachedLayout(metrics, layoutStyle, styleSheet, owner, rect.w, true, true);
+    paintLayout(context, rect, paintStyle, layout, metrics);
+}
+
+void TextLayout::paintLayout(PaintContext& context, const Rect& rect, const TextPaintStyle& style, const detail::TextLayout& layout,
+                             const TextMetrics& metrics) const {
     float y = rect.top();
     for (const detail::LaidOutTextLine& line : layout.lines) {
         y -= line.size.y;
@@ -131,10 +159,13 @@ void TextLayout::paint(PaintContext& context, const Rect& rect, const ComputedSt
         for (std::size_t runIndex = 0; runIndex < line.runs.size(); ++runIndex) {
             const TextRun& run = line.runs[runIndex];
             ComputedStyle runStyle = run.style;
+            runStyle.color = style.color;
+            runStyle.colorLightDark = style.colorLightDark;
+            runStyle.textDecoration = style.textDecoration;
             runStyle.textAlign = TextAlign::Left;
             context.paintText(run.value, {x, y, run.size.x, line.size.y}, runStyle);
             x += run.size.x;
-            if (runIndex + 1 < line.runs.size()) x += interRunSpacing(run, line.runs[runIndex + 1], context);
+            if (runIndex + 1 < line.runs.size()) x += interRunSpacing(run, line.runs[runIndex + 1], metrics);
         }
     }
 }
@@ -144,16 +175,12 @@ const std::vector<detail::TextLine>& TextLayout::cachedLines(const TextMetrics& 
     const std::size_t fingerprint = textStyleFingerprint(style);
     const std::uint64_t styleSheetGeneration = styleSheet ? styleSheet->generation() : 0;
     const std::uint64_t metricsGeneration = metrics.generation();
-    const std::uint64_t ownerStyleRevision = owner.styleContextRevision();
-    const Element* ownerParent = owner.parentElement();
     if (mCachedContentGeneration == mContentGeneration
         && mCachedMetrics == &metrics
         && mCachedMetricsGeneration == metricsGeneration
         && mCachedStyleSheet == styleSheet
         && mCachedStyleSheetGeneration == styleSheetGeneration
         && mCachedOwner == &owner
-        && mCachedOwnerParent == ownerParent
-        && mCachedOwnerStyleRevision == ownerStyleRevision
         && mCachedStyleFingerprint == fingerprint)
         return mCachedLines;
 
@@ -165,8 +192,6 @@ const std::vector<detail::TextLine>& TextLayout::cachedLines(const TextMetrics& 
     mCachedStyleSheet = styleSheet;
     mCachedStyleSheetGeneration = styleSheetGeneration;
     mCachedOwner = &owner;
-    mCachedOwnerParent = ownerParent;
-    mCachedOwnerStyleRevision = ownerStyleRevision;
     mCachedStyleFingerprint = fingerprint;
     return mCachedLines;
 }

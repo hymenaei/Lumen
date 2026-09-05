@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <iterator>
 #include <string>
 #include <variant>
 #include "eventcall.h"
@@ -15,6 +16,7 @@ namespace {
 using radia::ui::CurrentEventArgument;
 using radia::ui::EventCallParseError;
 using radia::ui::EventCallParseResult;
+using radia::ui::kAuthoredEventDescriptors;
 using radia::ui::parseEventCall;
 using radia::ui::SourceElementArgument;
 using ::testing::Message;
@@ -110,4 +112,24 @@ TEST(EventCallTest, RejectsOutOfRangeIntegerArguments) {
     const EventCallParseResult parsed = parseEventCall("select(9223372036854775808)");
     EXPECT_FALSE(parsed.ok());
     EXPECT_EQ(parsed.error, EventCallParseError::IntegerOutOfRange);
+}
+
+TEST(EventCallTest, CoversAuthoredEventDescriptors) {
+    constexpr radia::ui::AuthoredEventDescriptor expected[] = {
+        {"onClick", radia::ui::kClickEvent},
+        {"onDoubleClick", radia::ui::kDoubleClickEvent},
+        {"onInput", radia::ui::kInputEvent},
+        {"onChange", radia::ui::kChangeEvent},
+        {"onPointerDown", radia::ui::kPointerDownEvent},
+        {"onPointerUp", radia::ui::kPointerUpEvent},
+        {"onPointerMove", radia::ui::kPointerMoveEvent},
+        {"onContextMenu", radia::ui::kContextMenuEvent},
+        {"onWheel", radia::ui::kWheelEvent},
+    };
+
+    ASSERT_EQ(std::size(kAuthoredEventDescriptors), std::size(expected));
+    for (std::size_t index = 0; index < std::size(expected); ++index) {
+        EXPECT_EQ(kAuthoredEventDescriptors[index].attribute, expected[index].attribute);
+        EXPECT_EQ(kAuthoredEventDescriptors[index].type, expected[index].type);
+    }
 }

@@ -17,6 +17,9 @@ enum class Visibility : std::uint8_t { Visible, Hidden, Collapse };
 
 enum class ScrollbarMode : std::uint8_t { Classic, Overlay };
 
+enum class ScrollbarAxis : std::uint8_t { NoneValue, Horizontal, Vertical };
+enum class ScrollbarPart : std::uint8_t { NoneValue, Track, Thumb, StartArrow, EndArrow, Corner };
+
 struct Vec2 {
     float x = 0.f;
     float y = 0.f;

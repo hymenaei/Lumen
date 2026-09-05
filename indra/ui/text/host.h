@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include "style/computedstyle.h"
 #include "text/layout.h"
 #include "types.h"
 
@@ -18,8 +19,14 @@ class StyleSheet;
 class Element;
 
 class PaintContext;
-struct ComputedStyle;
 class TextMetrics;
+
+struct TextPaintStyle {
+    Color color;
+    std::optional<LightDarkColor> colorLightDark;
+    TextDecoration textDecoration = TextDecoration::NoneValue;
+    TextAlign textAlign = TextAlign::Left;
+};
 
 class TextLayout {
 public:
@@ -31,10 +38,16 @@ public:
 
     Vec2 measure(const TextMetrics& metrics, const ComputedStyle& style, const StyleSheet& styleSheet, const Element& owner,
                  std::optional<float> resolvedWidth = std::nullopt) const;
+    void preparePaint(const TextMetrics& metrics, const ComputedStyle& style, const StyleSheet& styleSheet, const Element& owner,
+                      float availableWidth) const;
     void paint(PaintContext& context, const Rect& rect, const ComputedStyle& style, const StyleSheet* styleSheet, const Element& owner) const;
+    void paintPrepared(PaintContext& context, const Rect& rect, const ComputedStyle& layoutStyle, const TextPaintStyle& paintStyle,
+                       const StyleSheet* styleSheet, const Element& owner) const;
 
 private:
     void updatePlainText();
+    void paintLayout(PaintContext& context, const Rect& rect, const TextPaintStyle& style, const detail::TextLayout& layout,
+                     const TextMetrics& metrics) const;
     const std::vector<detail::TextLine>& cachedLines(const TextMetrics& metrics, const ComputedStyle& style, const StyleSheet* styleSheet,
                                                      const Element& owner) const;
     const detail::TextLayout& cachedLayout(const TextMetrics& metrics, const ComputedStyle& style, const StyleSheet* styleSheet, const Element& owner,
@@ -49,8 +62,6 @@ private:
     mutable const StyleSheet* mCachedStyleSheet = nullptr;
     mutable std::uint64_t mCachedStyleSheetGeneration = 0;
     mutable const Element* mCachedOwner = nullptr;
-    mutable const Element* mCachedOwnerParent = nullptr;
-    mutable std::uint64_t mCachedOwnerStyleRevision = 0;
     mutable std::size_t mCachedStyleFingerprint = 0;
     mutable std::vector<detail::TextLine> mCachedLines;
     mutable bool mCachedLayoutValid = false;

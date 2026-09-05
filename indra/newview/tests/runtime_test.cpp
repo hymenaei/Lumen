@@ -8,18 +8,22 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 #include "controllerregistration.h"
 #include "documentcontroller.h"
 #include "dom/element.h"
+#include "event.h"
 #include "html/button.h"
 #include "html/floater.h"
 #include "html/panel.h"
+#include "inputbridge.h"
 #include "llcontrol.h"
 #include "llglslshader.h"
 #include "llsd.h"
+#include "nativeinput.h"
 #include "render/recordingpaintcontext.h"
 #include "runtime.h"
 
@@ -33,18 +37,24 @@ using radia::ui::KeyEvent;
 using radia::ui::kKeyReturn;
 using radia::ui::kKeyTab;
 using radia::ui::kModifierControl;
+using radia::ui::kPointerMoveEvent;
 using radia::ui::PaintCommandKind;
 using radia::ui::PointerButton;
 using radia::ui::PointerEvent;
 using radia::ui::RecordingPaintContext;
 using radia::ui::Rect;
 using radia::ui::System;
+using radia::ui::Vec2;
 using radia::ui::WheelEvent;
 using radia::viewer::ui::DocumentController;
+using radia::viewer::ui::NativePointerButton;
+using radia::viewer::ui::NativePointerInput;
 using radia::viewer::ui::Runtime;
 using radia::viewer::ui::RuntimeKeybindingState;
 using radia::viewer::ui::RuntimeState;
 using radia::viewer::ui::SkinSnapshotResult;
+using radia::viewer::ui::takePointerMoveForFrame;
+using radia::viewer::ui::translatePointerInput;
 using ::testing::Test;
 
 PointerEvent makePointerEvent(float x, float y, PointerButton button = PointerButton::NoButton, std::uint32_t modifiers = 0,
@@ -401,6 +411,61 @@ TEST_F(RuntimeTest, CapturedPointerContinuesOutsideViewportUntilRelease) {
     EXPECT_TRUE(floater->dragging());
 
     EXPECT_TRUE(runtime.pointerUp(makePointerEvent(-10.f, 900.f, PointerButton::Left)).handled);
+    EXPECT_FALSE(runtime.hasPointerCapture());
+    EXPECT_FALSE(floater->dragging());
+}
+
+TEST_F(RuntimeTest, DispatchesOneRuntimeMovePerDrainedNativeSample) {
+    ASSERT_TRUE(runtime.initialize());
+    ASSERT_TRUE(registerTestFloater());
+    HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
+    ASSERT_NE(floater, nullptr);
+    ASSERT_NE(floater->head(), nullptr);
+    runtime.frame(800, 600);
+
+    const Rect headRect = floater->head()->rect();
+    const float startX = headRect.x + headRect.w * .2f;
+    const float startY = headRect.y + headRect.h * .5f;
+    ASSERT_TRUE(runtime.pointerDown(makePointerEvent(startX, startY, PointerButton::Left)).handled);
+    ASSERT_TRUE(runtime.hasPointerCapture());
+
+    int moveEvents = 0;
+    Vec2 lastPosition;
+    Vec2 lastDelta;
+    floater->addEventListener(kPointerMoveEvent, [&](radia::ui::Event& event) {
+        ++moveEvents;
+        const PointerEvent* pointer = event.pointer();
+        ASSERT_NE(pointer, nullptr);
+        if (!pointer) return;
+        lastPosition = pointer->position;
+        lastDelta = pointer->delta;
+        if (moveEvents == 2) runtime.pointerCaptureLost();
+    });
+
+    std::optional<NativePointerInput> pending;
+    pending = NativePointerInput{startX + 10.f, startY + 5.f, NativePointerButton::NoButton, 0, 1, 1.f, 2.f};
+    pending = NativePointerInput{-10.f, 900.f, NativePointerButton::NoButton, 0, 1, 4.f, -3.f};
+    std::optional<NativePointerInput> sample = takePointerMoveForFrame(pending, true, false, true, 0, 4.f, -3.f);
+    ASSERT_TRUE(sample.has_value());
+    EXPECT_TRUE(runtime.pointerMove(translatePointerInput(*sample)).handled);
+    EXPECT_EQ(moveEvents, 1);
+    EXPECT_FLOAT_EQ(lastPosition.x, -10.f);
+    EXPECT_FLOAT_EQ(lastPosition.y, 900.f);
+    EXPECT_FLOAT_EQ(lastDelta.x, 4.f);
+    EXPECT_FLOAT_EQ(lastDelta.y, -3.f);
+    EXPECT_TRUE(runtime.hasPointerCapture());
+    EXPECT_TRUE(floater->dragging());
+    EXPECT_FALSE(pending.has_value());
+
+    pending = NativePointerInput{-20.f, 950.f, NativePointerButton::NoButton, 0, 1, 6.f, -5.f};
+    sample = takePointerMoveForFrame(pending, true, false, true, 0, 6.f, -5.f);
+    ASSERT_TRUE(sample.has_value());
+    (void)runtime.pointerMove(translatePointerInput(*sample));
+    EXPECT_EQ(moveEvents, 2);
+    EXPECT_FLOAT_EQ(lastPosition.x, -20.f);
+    EXPECT_FLOAT_EQ(lastPosition.y, 950.f);
+    EXPECT_FLOAT_EQ(lastDelta.x, 6.f);
+    EXPECT_FLOAT_EQ(lastDelta.y, -5.f);
     EXPECT_FALSE(runtime.hasPointerCapture());
     EXPECT_FALSE(floater->dragging());
 }

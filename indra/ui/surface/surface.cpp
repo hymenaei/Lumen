@@ -54,6 +54,15 @@ const Element* scrollbarClipOwner(const Element& element, const ComputedStyle& s
         if (dynamic_cast<const HTMLFloaterElement*>(ancestor)) return ancestor;
     return nullptr;
 }
+
+NativeScrollbarAxisGeometry projectScrollbarAxis(const ScrollbarAxisGeometry& geometry) {
+    return {geometry.axis,       geometry.bounds,   geometry.track,   geometry.thumb,
+            geometry.startArrow, geometry.endArrow, geometry.visible, geometry.reversed};
+}
+
+NativeScrollbarPaintGeometry projectScrollbarGeometry(const ScrollGeometry& geometry) {
+    return {projectScrollbarAxis(geometry.horizontal), projectScrollbarAxis(geometry.vertical), geometry.corner, geometry.hasCorner};
+}
 } // namespace
 
 Surface::ElementObservation Surface::observe(Element& element) const {
@@ -693,7 +702,6 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
             context.pushClip(ElementInternalAccess::scrollport(*current), scale, clipAxes);
             context.pushTranslation(scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()}));
         }
-        const ComputedStyle textStyle = Text::styleForParent(*painted);
         std::vector<NodeRef> children;
         children.reserve(current->mChildren.size());
         for (const auto& childNode : current->mChildren) children.emplace_back(childNode.get());
@@ -704,7 +712,7 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
             if (const Text* text = childNode->asText()) {
                 const Element* parent = observation.get();
                 if (!parent) break;
-                text->paint(context, textStyle, parent->styleSheet(), *parent);
+                text->paint(context, *painted, parent->styleSheet(), *parent);
                 continue;
             }
             const Element* child = childNode->asElement();
@@ -721,7 +729,7 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
         const ScrollGeometry geometry = scrollbarGeometry(*current, *painted);
         if (geometry.horizontal.visible || geometry.vertical.visible || geometry.hasCorner) {
             NativeScrollbarPaintRequest request;
-            request.geometry = geometry;
+            request.geometry = projectScrollbarGeometry(geometry);
             request.colors = painted->scrollbarColor;
             request.mode = painted->scrollbarModeSet ? painted->scrollbarMode : mScrollLayoutOptions.scrollbarMode;
             request.metrics = scrollbarMetrics(request.mode);

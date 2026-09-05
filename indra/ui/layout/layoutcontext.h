@@ -85,6 +85,12 @@ private:
     ComputedStyle style(const layout_detail::LayoutChildRef& node, const ComputedStyle& parentStyle) {
         if (node.pseudoElement) return style(*node.pseudoElement);
         if (const Element* element = node.element()) return mStyles.style(*element);
+        if (Text* text = node.text()) {
+            ComputedStyle result = Text::styleForParent(parentStyle);
+            result.direction = direction();
+            text->setLayoutStyle(result);
+            return result;
+        }
         return Text::styleForParent(parentStyle);
     }
 

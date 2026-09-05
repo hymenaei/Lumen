@@ -65,6 +65,7 @@ using radia::ui::PaintCommand;
 using radia::ui::PaintCommandKind;
 using radia::ui::PaintContext;
 using radia::ui::PointerButton;
+using radia::ui::PointerEvent;
 using radia::ui::RecordingPaintContext;
 using radia::ui::ResourceSnapshot;
 using radia::ui::SkinCompiler;
@@ -77,6 +78,7 @@ using radia::ui::TextAlign;
 using radia::ui::TextLayout;
 using radia::ui::TextMetrics;
 using radia::ui::TextOverflow;
+using radia::ui::TextPaintStyle;
 using radia::ui::TextWrap;
 using radia::ui::Vec2;
 using radia::ui::Visibility;
@@ -118,6 +120,29 @@ public:
 
 private:
     TextLayout mLayout;
+};
+
+class CountingTextMetrics final : public TextMetrics {
+public:
+    Vec2 measureText(const std::string& text, const ComputedStyle& style) const override {
+        ++mMeasureCalls;
+        return mMetrics.measureText(text, style);
+    }
+
+    float usedLetterSpacing(const ComputedStyle& style) const override { return mMetrics.usedLetterSpacing(style); }
+    std::uint64_t generation() const noexcept override { return mMetrics.generation(); }
+    std::size_t measureCalls() const { return mMeasureCalls; }
+
+private:
+    FixedTextMetrics mMetrics;
+    mutable std::size_t mMeasureCalls = 0;
+};
+
+class EventDispatchProbe final : public Element {
+public:
+    EventDispatchProbe() : Element("probe") {}
+
+    void dispatch(Event& event) { dispatchEvent(event); }
 };
 } // namespace
 
@@ -224,6 +249,17 @@ TEST(EventTest, CheckedPayloadAccessorRejectsOtherPayloads) {
     Event event(kClickEvent, target);
 
     EXPECT_FALSE(event.checked());
+}
+
+TEST(EventTest, RejectsInvalidPayloadForKnownType) {
+    auto target = std::make_unique<EventDispatchProbe>();
+    int invocations = 0;
+    target->addEventListener(kClickEvent, [&](Event&) { ++invocations; });
+
+    Event event(kClickEvent, *target, PointerEvent{});
+    target->dispatch(event);
+
+    EXPECT_EQ(invocations, 0);
 }
 
 TEST(ElementTest, DisabledButtonsDoNotActivate) {
@@ -1273,6 +1309,100 @@ TEST(TextLayoutTest, AppliesOverflowToMountedTextNodes) {
     surface.paint(recording);
 
     EXPECT_EQ(paintedText(recording), "ab\u2026a\u2026f");
+}
+
+TEST(TextLayoutTest, PreparesPaintLayoutBeforePainting) {
+    CountingTextMetrics metrics;
+    TextLayout layout("abcdef");
+    auto owner = makeElement<Element>("p");
+    StyleSheet stylesheet;
+    ComputedStyle style;
+    style.fontSize = 10.f;
+    style.textWrap = TextWrap::NoWrap;
+    style.textOverflow = TextOverflow::Ellipsis;
+    style.overflowX = Overflow::Hidden;
+
+    layout.measure(metrics, style, stylesheet, *owner, 20.f);
+    layout.preparePaint(metrics, style, stylesheet, *owner, 20.f);
+    const std::size_t preparedMeasureCalls = metrics.measureCalls();
+
+    RecordingPaintContext recording(metrics);
+    const TextPaintStyle paintStyle{style.color, style.colorLightDark, style.textDecoration, style.textAlign};
+    layout.paintPrepared(recording, {0.f, 0.f, 20.f, 10.f}, style, paintStyle, &stylesheet, *owner);
+
+    EXPECT_EQ(metrics.measureCalls(), preparedMeasureCalls);
+}
+
+TEST(TextLayoutTest, RebuildsPreparedLayoutAfterContentChange) {
+    FixedTextMetrics metrics(1.f, 1.f);
+    TextLayout layout("old");
+    auto owner = makeElement<Element>("p");
+    StyleSheet stylesheet;
+    ComputedStyle style;
+    style.fontSize = 10.f;
+    style.textWrap = TextWrap::NoWrap;
+
+    layout.preparePaint(metrics, style, stylesheet, *owner, 100.f);
+    layout.setText("new");
+
+    RecordingPaintContext recording(metrics);
+    const TextPaintStyle paintStyle{style.color, style.colorLightDark, style.textDecoration, style.textAlign};
+    layout.paintPrepared(recording, {0.f, 0.f, 100.f, 10.f}, style, paintStyle, &stylesheet, *owner);
+
+    EXPECT_EQ(paintedText(recording), "new");
+}
+
+TEST(TextLayoutTest, RebuildsPreparedLayoutForDifferentPaintMetrics) {
+    FixedTextMetrics narrowMetrics(.5f, .5f);
+    FixedTextMetrics wideMetrics(1.f, 1.f);
+    TextLayout layout("abc");
+    auto owner = makeElement<Element>("p");
+    StyleSheet stylesheet;
+    ComputedStyle style;
+    style.fontSize = 10.f;
+    style.textWrap = TextWrap::NoWrap;
+
+    layout.preparePaint(narrowMetrics, style, stylesheet, *owner, 100.f);
+
+    RecordingPaintContext recording(wideMetrics);
+    const TextPaintStyle paintStyle{style.color, style.colorLightDark, style.textDecoration, style.textAlign};
+    layout.paintPrepared(recording, {0.f, 0.f, 100.f, 10.f}, style, paintStyle, &stylesheet, *owner);
+
+    const PaintCommand* text = recording.last(PaintCommandKind::Text);
+    ASSERT_NE(text, nullptr);
+    EXPECT_FLOAT_EQ(text->rect.w, 30.f);
+}
+
+TEST(TextLayoutTest, ProjectsCurrentPaintColorOntoMountedText) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("panel { display: block; } p { width: 40px; height: 10px; color: #ff0000; } p.accent { color: #0000ff; }").ok());
+
+    Surface surface(stylesheet);
+    surface.setViewport(40.f, 20.f);
+    auto panel = makeElement<HTMLPanelElement>();
+    panel->setRect({0.f, 0.f, 40.f, 20.f});
+    auto paragraph = makeElement<Element>("p");
+    Element* paragraphPtr = paragraph.get();
+    paragraph->textContent("abcdef");
+    panel->append(std::move(paragraph));
+    surface.mount(std::move(panel));
+
+    RecordingPaintContext first;
+    surface.paint(first);
+    paragraphPtr->addClass("accent");
+    RecordingPaintContext second;
+    surface.paint(second);
+
+    const PaintCommand* firstText = first.last(PaintCommandKind::Text);
+    const PaintCommand* secondText = second.last(PaintCommandKind::Text);
+    ASSERT_NE(firstText, nullptr);
+    ASSERT_NE(secondText, nullptr);
+    EXPECT_FLOAT_EQ(firstText->style.color.r, 1.f);
+    EXPECT_FLOAT_EQ(secondText->style.color.b, 1.f);
+    EXPECT_EQ(firstText->rect.x, secondText->rect.x);
+    EXPECT_EQ(firstText->rect.y, secondText->rect.y);
+    EXPECT_EQ(firstText->rect.w, secondText->rect.w);
+    EXPECT_EQ(firstText->rect.h, secondText->rect.h);
 }
 
 TEST(TextLayoutTest, AppliesLetterAndWordSpacingToMeasuredText) {

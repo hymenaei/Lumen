@@ -598,6 +598,7 @@ void Element::dispatchListeners(Event& event, bool capture) {
 }
 
 void Element::dispatchEvent(Event& event) {
+    if (!event.payloadMatchesType()) return;
     if (mSurface) {
         mSurface->routeEvent(event);
         return;

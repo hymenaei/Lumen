@@ -111,6 +111,7 @@ Element* Surface::hitTestNode(Element& node, const Vec2& point, const Rect& inhe
 }
 
 bool Surface::routeEvent(Event& event) {
+    if (!event.payloadMatchesType()) return false;
     std::vector<ElementRef<Element>> route;
     for (Element* current = event.target(); current; current = current->parentElement()) {
         route.emplace_back(current);
@@ -874,7 +875,7 @@ bool Surface::charInput(unsigned int codepoint) {
     ElementRef<Element> focusedRef(mFocused);
     Element* focused = focusedRef.get();
     if (!focused) return false;
-    Event routed(kCharacterInputEvent, *focused, Event::Payload(codepoint));
+    Event routed(kCharacterInputEvent, *focused, codepoint);
     const bool routedHandled = routeEvent(routed);
     focused = focusedRef.get();
     if (!focused || !isRootedInSurface(focused) || !isEnabledInTree(focused)) return routedHandled;

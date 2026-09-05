@@ -50,6 +50,7 @@ class RecordingPaintContext final : public PaintContext {
 public:
     explicit RecordingPaintContext(const TextMetrics& textMetrics = fixedTextMetrics()) : mTextMetrics(textMetrics) {}
 
+    const TextMetrics& textMetrics() const override { return mTextMetrics; }
     Vec2 measureText(const std::string& text, const ComputedStyle& style) const override;
     float usedLetterSpacing(const ComputedStyle& style) const override;
     std::uint64_t generation() const noexcept override { return mTextMetrics.generation(); }

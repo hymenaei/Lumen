@@ -14,6 +14,7 @@
 #include "dom/element.h"
 #include "event.h"
 #include "nativeappearance.h"
+#include "surface/scrollgeometry.h"
 
 namespace radia::ui {
 class HTMLFloaterElement;

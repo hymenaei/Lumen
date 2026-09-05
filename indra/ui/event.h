@@ -140,6 +140,21 @@ private:
     Event(std::string_view type, Element& target, Payload payload)
         : mType(type), mTarget(&target), mTargetLifetime(detail::eventTargetLifetime(target)), mPayload(std::move(payload)) {}
 
+    bool payloadMatchesType() const noexcept {
+        if (mType == kClickEvent || mType == kScrollEvent) return std::holds_alternative<std::monostate>(mPayload);
+        if (mType == kDoubleClickEvent
+            || mType == kPointerDownEvent
+            || mType == kPointerUpEvent
+            || mType == kPointerMoveEvent
+            || mType == kContextMenuEvent)
+            return std::holds_alternative<PointerEvent>(mPayload);
+        if (mType == kInputEvent || mType == kChangeEvent) return std::holds_alternative<bool>(mPayload);
+        if (mType == kWheelEvent) return std::holds_alternative<WheelEvent>(mPayload);
+        if (mType == kKeyDownEvent || mType == kKeyUpEvent) return std::holds_alternative<KeyEvent>(mPayload);
+        if (mType == kCharacterInputEvent) return std::holds_alternative<unsigned int>(mPayload);
+        return true;
+    }
+
     void setPhase(EventPhase phase) noexcept { mPhase = phase; }
     void setCurrentTarget(Element* target) noexcept {
         mCurrentTarget = target;
