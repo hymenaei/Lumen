@@ -9,7 +9,7 @@
 
 namespace radia::ui {
 class HTMLLabelElement : public HTMLElement {
-    friend class html_detail::FragmentParser;
+    friend class dom_detail::FragmentParser;
     friend class detail::ElementDefinitions;
     friend class detail::ElementConstructionAccess;
     friend class detail::HTMLElementFactory;

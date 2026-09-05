@@ -15,7 +15,7 @@
 #include "documentcontrollerinternal.h"
 #include "dom/elementinternal.h"
 #include "html/floater.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 #include "system.h"
 

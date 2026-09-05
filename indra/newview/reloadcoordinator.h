@@ -10,7 +10,7 @@
 #include <memory>
 #include <optional>
 #include "diagnostic.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 
 namespace radia::ui { class System; } // namespace radia::ui
 

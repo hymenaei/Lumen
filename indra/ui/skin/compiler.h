@@ -7,7 +7,7 @@
 
 #include <memory>
 #include "diagnostic.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 
 namespace radia::ui {

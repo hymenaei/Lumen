@@ -8,7 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include "path.h"
+#include "paint/path.h"
 
 namespace {
 using radia::ui::compileSvgPathData;

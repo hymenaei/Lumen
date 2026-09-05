@@ -4,10 +4,10 @@
  */
 
 #include "linden_common.h"
-#include "nativeappearance.h"
+#include "paint/nativeappearance.h"
 #include <algorithm>
 #include <cmath>
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 
 namespace radia::ui {
 namespace {

@@ -7,7 +7,7 @@
 
 #include <functional>
 #include "documentcontroller.h"
-#include "event.h"
+#include "event/event.h"
 
 namespace radia::viewer::ui {
 using radia::ui::Event;

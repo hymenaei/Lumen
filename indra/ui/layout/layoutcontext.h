@@ -13,7 +13,7 @@
 #include "html/elementnames.h"
 #include "layout/engine.h"
 #include "layout/primitives.h"
-#include "nativeappearance.h"
+#include "paint/nativeappearance.h"
 #include "style/stylepass.h"
 
 namespace radia::ui {

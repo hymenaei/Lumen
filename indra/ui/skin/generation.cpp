@@ -7,7 +7,7 @@
 #include "skin/generation.h"
 #include "html/icon.h"
 #include "resource/elementdefinition.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generationinternal.h"
 
 namespace radia::ui {

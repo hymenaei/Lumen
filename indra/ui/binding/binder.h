@@ -106,7 +106,7 @@ public:
         std::weak_ptr<char> lifetime;
         Node* parent = nullptr;
         std::string type;
-        EventCall call;
+        AuthoredEventCall call;
         detail::MountEpoch mountEpoch;
         std::uint64_t parentTopologyEpoch = 0;
     };
@@ -150,7 +150,7 @@ private:
     struct PendingEventHandler {
         std::string name;
         EventRegistrationDescriptor::Invoke invoke;
-        std::function<const char*(const EventCall&)> argumentError;
+        std::function<const char*(const AuthoredEventCall&)> argumentError;
         bool valid = false;
     };
 

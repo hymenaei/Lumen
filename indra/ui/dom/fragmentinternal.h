@@ -13,9 +13,9 @@
 namespace radia::ui {
 class Fragment;
 
-namespace html_detail {
+namespace dom_detail {
 bool isValidHTMLAttribute(HTMLTag tag, std::string_view name, bool hasValue, std::string_view value);
 FragmentPtr parseFragment(std::string_view html);
 std::string serializeChildren(const Node& parent);
-} // namespace html_detail
+} // namespace dom_detail
 } // namespace radia::ui

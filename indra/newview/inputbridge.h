@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "event.h"
+#include "event/event.h"
 #include "llcursortypes.h"
 #include "nativeinput.h"
 #include "style/computedstyle.h"

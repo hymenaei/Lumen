@@ -14,7 +14,7 @@
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/recordingpaintcontext.h"
 #include "surface/surface.h"
 
 namespace {

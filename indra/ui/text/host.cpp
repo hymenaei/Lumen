@@ -12,7 +12,7 @@
 #include <utility>
 #include "css/stylesheet.h"
 #include "dom/element.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 #include "style/computedstyle.h"
 #include "text/layout.h"
 #include "text/metrics.h"

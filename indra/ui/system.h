@@ -15,10 +15,10 @@
 #include <vector>
 #include "css/stylesheet.h"
 #include "diagnostic.h"
-#include "layout/buildresult.h"
 #include "localization.h"
-#include "nativeappearance.h"
-#include "resourceprovider.h"
+#include "paint/nativeappearance.h"
+#include "resource/buildresult.h"
+#include "resource/resourceprovider.h"
 #include "text/keybinding.h"
 
 namespace radia::ui {

@@ -8,12 +8,12 @@
 #include <algorithm>
 #include "dom/elementinternal.h"
 #include "dom/fragment.h"
+#include "dom/fragmentinternal.h"
 #include "dom/mutation.h"
 #include "dom/text.h"
-#include "eventcallinternal.h"
-#include "html/fragmentinternal.h"
+#include "event/eventcallinternal.h"
 #include "layout/engine.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 #include "style/computedstyle.h"
 #include "style/pseudoelement.h"
 #include "style/stylepass.h"
@@ -131,8 +131,8 @@ using detail::ElementPrivateData;
 using detail::NodeAccess;
 using detail::NodeMutation;
 using detail::NodeRef;
-using html_detail::parseFragment;
-using html_detail::serializeChildren;
+using dom_detail::parseFragment;
+using dom_detail::serializeChildren;
 
 namespace {
 FragmentPtr parseOrLiteralText(std::string html) {

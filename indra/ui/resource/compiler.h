@@ -11,8 +11,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "layout/buildresult.h"
-#include "resourceprovider.h"
+#include "resource/buildresult.h"
+#include "resource/resourceprovider.h"
 
 namespace radia::ui {
 class Element;

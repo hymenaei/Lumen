@@ -12,7 +12,7 @@
 #include <string_view>
 #include "namedtempfile.h"
 #include "resolver.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/compiler.h"
 
 namespace {

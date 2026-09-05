@@ -15,15 +15,15 @@
 #include "binding/binder.h"
 #include "dom/elementinternal.h"
 #include "dom/text.h"
-#include "eventcall.h"
+#include "event/eventcall.h"
 #include "floater_test_helpers.h"
 #include "html/button.h"
 #include "html/floater.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
-#include "nativeappearance.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/nativeappearance.h"
+#include "paint/recordingpaintcontext.h"
 #include "skin/compiler.h"
 #include "surface/surface.h"
 #include "system.h"
@@ -31,6 +31,7 @@
 
 namespace {
 using radia::ui::AAIntent;
+using radia::ui::AuthoredEventCall;
 using radia::ui::Binder;
 using radia::ui::Binding;
 using radia::ui::ClipAxes;
@@ -42,7 +43,6 @@ using radia::ui::Element;
 using radia::ui::ElementRef;
 using radia::ui::ElementState;
 using radia::ui::Event;
-using radia::ui::EventCall;
 using radia::ui::EventHandler;
 using radia::ui::EventPhase;
 using radia::ui::fixedTextMetrics;
@@ -106,19 +106,20 @@ constexpr char kFloaterInteractionLayout[] = "floater { display: flex; flex-dire
                                              "floater > body { flex-grow: 1; } "
                                              "label { height: 20px; }";
 
-const char* noEventArguments(const EventCall& call) {
+const char* noAuthoredEventArguments(const AuthoredEventCall& call) {
     return call.arguments().empty() ? nullptr : "binding.event.arity_mismatch";
 }
 
 template<typename Callback> void bindAction(Binder& binder, std::string name, Callback callback) {
-    binder.event(
-        makeEventRegistration(std::move(name), [callback = std::move(callback)](Event&, const EventCall&) mutable { callback(); }, noEventArguments));
+    binder.event(makeEventRegistration(
+        std::move(name), [callback = std::move(callback)](Event&, const AuthoredEventCall&) mutable { callback(); }, noAuthoredEventArguments));
 }
 
 template<typename Callback> void bindSemanticEvent(Binder& binder, std::string name, Callback callback) {
     binder.event(makeEventRegistration(
-        std::move(name), [callback = std::move(callback)](Event& event, const EventCall&) mutable { callback(static_cast<const Event&>(event)); },
-        noEventArguments));
+        std::move(name),
+        [callback = std::move(callback)](Event& event, const AuthoredEventCall&) mutable { callback(static_cast<const Event&>(event)); },
+        noAuthoredEventArguments));
 }
 } // namespace
 
@@ -1390,11 +1391,11 @@ TEST(SurfaceTest, DispatchesMouseBindingsInExpectedOrder) {
     context.setViewport(100.f, 100.f);
     auto button = makeElement<HTMLButtonElement>();
     button->setRect({10.f, 10.f, 20.f, 20.f}).setPointerEvents(true);
-    setAuthoredEventCall(*button, kPointerDownEvent, EventCall("press"));
-    setAuthoredEventCall(*button, kPointerUpEvent, EventCall("release"));
-    setAuthoredEventCall(*button, kClickEvent, EventCall("click"));
-    setAuthoredEventCall(*button, kDoubleClickEvent, EventCall("doubleClick"));
-    setAuthoredEventCall(*button, kContextMenuEvent, EventCall("contextMenu"));
+    setAuthoredEventCall(*button, kPointerDownEvent, AuthoredEventCall("press"));
+    setAuthoredEventCall(*button, kPointerUpEvent, AuthoredEventCall("release"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("click"));
+    setAuthoredEventCall(*button, kDoubleClickEvent, AuthoredEventCall("doubleClick"));
+    setAuthoredEventCall(*button, kContextMenuEvent, AuthoredEventCall("contextMenu"));
     HTMLButtonElement* mounted = button.get();
     context.mount(std::move(button));
 
@@ -1453,7 +1454,7 @@ TEST(SurfaceTest, KeepsOwnedBindingScopedToUnmountAndRemount) {
     HTMLPanelElement* rootPointer = root.get();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("activate"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("activate"));
     root->append(std::move(button));
 
     int activations = 0;
@@ -1494,7 +1495,7 @@ TEST(SurfaceTest, KeepsBorrowedBindingScopedToUnmountAndRemount) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("activate"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("activate"));
     root.append(std::move(button));
 
     int activations = 0;

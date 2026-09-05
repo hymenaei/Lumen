@@ -12,7 +12,7 @@
 #include <optional>
 #include <string>
 #include <vector>
-#include "event.h"
+#include "event/event.h"
 #include "resolver.h"
 #include "stdtypes.h"
 #include "style/computedstyle.h"

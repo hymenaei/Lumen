@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include "path.h"
+#include "paint/path.h"
 #include "style/computedstyle.h"
 #include "types.h"
 

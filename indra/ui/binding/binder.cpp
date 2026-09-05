@@ -8,7 +8,7 @@
 #include <map>
 #include <set>
 #include "dom/elementinternal.h"
-#include "eventcall.h"
+#include "event/eventcall.h"
 #include "surface/surface.h"
 
 namespace radia::ui {
@@ -155,30 +155,30 @@ void Binder::event(const EventHandlerRegistration& registration) {
 }
 
 namespace {
-bool sameEventArgument(const EventArgument& left, const EventArgument& right) {
+bool sameAuthoredEventArgument(const AuthoredEventArgument& left, const AuthoredEventArgument& right) {
     if (left.index() != right.index()) return false;
     return std::visit(
         [](const auto& leftValue, const auto& rightValue) {
             using Left = std::decay_t<decltype(leftValue)>;
             using Right = std::decay_t<decltype(rightValue)>;
             if constexpr (!std::is_same_v<Left, Right>) return false;
-            else if constexpr (std::is_same_v<Left, SourceElementArgument> || std::is_same_v<Left, CurrentEventArgument>) return true;
+            else if constexpr (std::is_same_v<Left, SourceElementArgument> || std::is_same_v<Left, CurrentAuthoredEventArgument>) return true;
             else return leftValue == rightValue;
         },
         left, right);
 }
 
-bool sameEventCall(const EventCall& left, const EventCall& right) {
+bool sameAuthoredEventCall(const AuthoredEventCall& left, const AuthoredEventCall& right) {
     if (left.name() != right.name() || left.arguments().size() != right.arguments().size()) return false;
     for (std::size_t index = 0; index < left.arguments().size(); ++index)
-        if (!sameEventArgument(left.arguments()[index], right.arguments()[index])) return false;
+        if (!sameAuthoredEventArgument(left.arguments()[index], right.arguments()[index])) return false;
     return true;
 }
 
-void collectEventCalls(Element& element, std::map<std::string, std::vector<Binder::EventDeclaration>>& declarations) {
+void collectAuthoredEventCalls(Element& element, std::map<std::string, std::vector<Binder::EventDeclaration>>& declarations) {
     for (const AuthoredEventDescriptor& descriptor : kAuthoredEventDescriptors) {
         const std::string type(descriptor.type);
-        const EventCall* eventCall = authoredEventCall(element, type);
+        const AuthoredEventCall* eventCall = authoredEventCall(element, type);
         if (!eventCall) continue;
         const std::string& name = eventCall->name();
         declarations[name].push_back({&element, ElementInternalAccess::lifetime(element), element.parentNode(), type, *eventCall,
@@ -186,7 +186,7 @@ void collectEventCalls(Element& element, std::map<std::string, std::vector<Binde
                                       element.parentElement() ? ElementInternalAccess::topologyEpoch(*element.parentElement()) : 0});
     }
     for (Element* child : element.children())
-        if (!child->idScopeRoot()) collectEventCalls(*child, declarations);
+        if (!child->idScopeRoot()) collectAuthoredEventCalls(*child, declarations);
 }
 
 void collectBoundInputs(Element& element, std::vector<HTMLInputElement*>& inputs) {
@@ -211,7 +211,7 @@ void Binder::validate(Element& root, DiagnosticResult& result) {
     }
 
     mEventDeclarations.clear();
-    collectEventCalls(root, mEventDeclarations);
+    collectAuthoredEventCalls(root, mEventDeclarations);
 
     std::set<std::string> registeredHandlers;
     for (PendingEventHandler& pending : mPendingEventHandlers) {
@@ -317,8 +317,8 @@ void Binder::commit(Element&, Binding& binding) {
                             inRoot = true;
                             break;
                         }
-                    const EventCall* authored = authoredEventCall(*element, type);
-                    if (!inRoot || !authored || !sameEventCall(*authored, call)) return;
+                    const AuthoredEventCall* authored = authoredEventCall(*element, type);
+                    if (!inRoot || !authored || !sameAuthoredEventCall(*authored, call)) return;
                     invoke(event, call);
                 });
                 binding.mEventAttachments.push_back({declaration.element, ElementInternalAccess::lifetime(*declaration.element), declaration.type,
@@ -379,8 +379,8 @@ bool Binder::validForCommit() const {
                 || (declaration.element->parentElement() ? ElementInternalAccess::topologyEpoch(*declaration.element->parentElement()) : 0)
                     != declaration.parentTopologyEpoch)
                 return false;
-            const EventCall* current = authoredEventCall(*declaration.element, declaration.type);
-            if (!current || !sameEventCall(*current, declaration.call)) return false;
+            const AuthoredEventCall* current = authoredEventCall(*declaration.element, declaration.type);
+            if (!current || !sameAuthoredEventCall(*current, declaration.call)) return false;
         }
     }
     return true;

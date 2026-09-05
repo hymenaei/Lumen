@@ -7,9 +7,9 @@
 
 #include <unordered_map>
 #include <utility>
-#include "layout/resourcecompiler.h"
-#include "render/svg.h"
-#include "resourceprovider.h"
+#include "paint/svg.h"
+#include "resource/compiler.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 
 namespace radia::ui {

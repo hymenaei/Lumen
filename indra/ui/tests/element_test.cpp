@@ -24,7 +24,7 @@
 #include "html/label.h"
 #include "html/panel.h"
 #include "llerrorcontrol.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/recordingpaintcontext.h"
 #include "skin/compiler.h"
 #include "surface/surface.h"
 #include "system.h"

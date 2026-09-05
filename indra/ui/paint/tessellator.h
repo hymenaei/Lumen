@@ -6,7 +6,7 @@
 #pragma once
 
 #include <vector>
-#include "path.h"
+#include "paint/path.h"
 
 namespace radia::ui {
 struct Vertex {

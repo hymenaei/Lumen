@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 #include "diagnostic.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 
 namespace radia::viewer::ui {
 using radia::ui::DiagnosticResult;

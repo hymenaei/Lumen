@@ -6,7 +6,7 @@
 #include "linden_common.h"
 #include "skin/compiler.h"
 #include <unordered_map>
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 #include "skin/generationinternal.h"
 

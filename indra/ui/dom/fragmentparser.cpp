@@ -4,7 +4,6 @@
  */
 
 #include "linden_common.h"
-#include "dom/fragment.h"
 #include <algorithm>
 #include <string>
 #include <string_view>
@@ -12,18 +11,19 @@
 #include <vector>
 #include "dom/element.h"
 #include "dom/elementinternal.h"
+#include "dom/fragment.h"
+#include "dom/fragmentinternal.h"
 #include "dom/text.h"
 #include "html/element.h"
 #include "html/elementfactory.h"
 #include "html/elementnames.h"
 #include "html/floater.h"
-#include "html/fragmentinternal.h"
 #include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "llstring.h"
 
-namespace radia::ui::html_detail {
+namespace radia::ui::dom_detail {
 using detail::appendText;
 using detail::HTMLElementFactory;
 using detail::NodeAccess;
@@ -343,4 +343,4 @@ std::string serializeChildren(const Node& parent) {
     for (const Node* child : parent.childNodes()) FragmentSerializer::serializeNode(*child, result);
     return result;
 }
-} // namespace radia::ui::html_detail
+} // namespace radia::ui::dom_detail

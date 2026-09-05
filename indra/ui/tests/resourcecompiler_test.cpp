@@ -12,8 +12,8 @@
 #include <type_traits>
 #include "dom/elementinternal.h"
 #include "dom/text.h"
-#include "event.h"
-#include "eventcall.h"
+#include "event/event.h"
+#include "event/eventcall.h"
 #include "floater_test_helpers.h"
 #include "html/button.h"
 #include "html/floater.h"
@@ -21,11 +21,11 @@
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
-#include "layout/document.h"
 #include "layout/engine.h"
-#include "layout/resourcecompiler.h"
 #include "layout_test_helpers.h"
-#include "resourceprovider.h"
+#include "resource/compiler.h"
+#include "resource/resourceprovider.h"
+#include "resource/sourcedocument.h"
 #include "skin/compiler.h"
 #include "style/computedstyle.h"
 #include "style/stylepass.h"
@@ -161,7 +161,7 @@ TEST_F(ResourceCompilerTest, ResolvesResourceReferencesThroughProvider) {
     EXPECT_EQ(result.document->documentElement()->children().front()->id(), "child");
 }
 
-TEST_F(ResourceCompilerTest, BuildsFloaterWithControlsAndEventCalls) {
+TEST_F(ResourceCompilerTest, BuildsFloaterWithControlsAndAuthoredEventCalls) {
     resources["elements/minimize.html"] = "<minimize><icon src=\"minimize\"></icon></minimize>";
     resources["elements/close.html"] = "<close><icon src=\"close\"></icon></close>";
     constexpr char kFloaterLayout[] = "<floater resizeable><head><title>title</title><minimize></minimize><close></close></head><body>"
@@ -1038,12 +1038,12 @@ TEST_F(ResourceCompilerTest, RejectsMalformedHTMLAttributesAndCaseFoldedConflict
     EXPECT_EQ(invalidHandler.warnings.front().code, "layout.event.name_invalid");
 }
 
-TEST_F(ResourceCompilerTest, PreservesValidEventCallsAndWarnsForInvalidCalls) {
-    constexpr char kEventCallsLayout[] = "<panel><button id=\"inspect\" "
-                                         "onClick=\"inspect(4, 'settings', true, this, event)\"></button>"
-                                         "<button id=\"bare\" onClick=\"press\"></button>"
-                                         "<button id=\"lifecycle\" onClick=\"postBuild()\"></button></panel>";
-    ResourceBuildResult result = factory.buildElementTreeFromString(kEventCallsLayout, "event-calls.html");
+TEST_F(ResourceCompilerTest, PreservesValidAuthoredEventCallsAndWarnsForInvalidCalls) {
+    constexpr char kAuthoredEventCallsLayout[] = "<panel><button id=\"inspect\" "
+                                                 "onClick=\"inspect(4, 'settings', true, this, event)\"></button>"
+                                                 "<button id=\"bare\" onClick=\"press\"></button>"
+                                                 "<button id=\"lifecycle\" onClick=\"postBuild()\"></button></panel>";
+    ResourceBuildResult result = factory.buildElementTreeFromString(kAuthoredEventCallsLayout, "event-calls.html");
     ASSERT_TRUE(result.ok());
     ASSERT_EQ(result.warnings.size(), 2U);
     EXPECT_EQ(result.warnings[0].code, "layout.event.call_required");

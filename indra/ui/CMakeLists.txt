@@ -9,11 +9,7 @@ set(default_stylesheet_output "${CMAKE_CURRENT_BINARY_DIR}/css/defaults.inc")
 generate_default_stylesheet(SOURCE "${default_stylesheet_source}" OUTPUT "${default_stylesheet_output}")
 
 set(private_sources
-    eventcall.cpp
-    eventcallinternal.h
     localization.cpp
-    nativeappearance.cpp
-    path.cpp
     system.cpp
 
     binding/binder.cpp
@@ -30,21 +26,27 @@ set(private_sources
 
     dom/document.cpp
     dom/element.cpp
+    dom/elementinternal.h
     dom/fragment.cpp
+    dom/fragmentinternal.h
+    dom/fragmentparser.cpp
     dom/mutation.cpp
     dom/mutation.h
     dom/node.cpp
     dom/text.cpp
-    resource/elementdefinition.cpp
-    resource/elementdefinition.h
-    dom/elementinternal.h
+
+    event/eventcall.cpp
+    event/eventcallinternal.h
 
     html/button.cpp
+    html/element.cpp
+    html/elementfactory.cpp
+    html/elementfactory.h
+    html/elementnames.cpp
+    html/elementnames.h
     html/fieldset.cpp
     html/fieldset.h
     html/floater.cpp
-    html/fragment.cpp
-    html/fragmentinternal.h
     html/icon.cpp
     html/input.cpp
     html/inputcheckbox.cpp
@@ -52,50 +54,52 @@ set(private_sources
     html/label.cpp
     html/panel.cpp
 
-    html/elementfactory.cpp
-    html/elementfactory.h
-    html/elementnames.cpp
-    html/elementnames.h
-    html/element.cpp
-
     layout/arrange.cpp
-    layout/document.cpp
-    layout/document.h
     layout/engine.cpp
     layout/engine.h
     layout/layoutcontext.h
     layout/measure.cpp
     layout/primitives.cpp
     layout/primitives.h
-    layout/resourcecompiler.cpp
-    layout/resourcecompiler.h
     layout/treecache.cpp
     layout/treecache.h
 
-    render/openglpaintcontext.cpp
-    render/openglpaintstate.cpp
-    render/openglpaintstate.h
-    render/paintprotocol.def
-    render/recordingpaintcontext.cpp
-    render/svg.cpp
-    render/tessellator.cpp
+    paint/nativeappearance.cpp
+    paint/openglpaintcontext.cpp
+    paint/openglpaintstate.cpp
+    paint/openglpaintstate.h
+    paint/paintprotocol.def
+    paint/path.cpp
+    paint/recordingpaintcontext.cpp
+    paint/svg.cpp
+    paint/tessellator.cpp
+
+    resource/compiler.cpp
+    resource/compiler.h
+    resource/elementdefinition.cpp
+    resource/elementdefinition.h
+    resource/sourcedocument.cpp
+    resource/sourcedocument.h
 
     skin/compiler.cpp
     skin/generation.cpp
     skin/generationinternal.h
 
-    style/property.h
     style/property.cpp
+    style/property.h
     style/resolver.cpp
     style/stylepass.cpp
     style/stylepass.h
 
     surface/floaterresize.cpp
     surface/floaters.cpp
-    surface/input.cpp
     surface/resize.cpp
     surface/scrollgeometry.cpp
-    surface/surface.cpp
+    surface/surfacehost.cpp
+    surface/surfacelayout.cpp
+    surface/surfacepaint.cpp
+    surface/surfaceinput.cpp
+    surface/surfacescroll.cpp
 
     text/host.cpp
     text/inlineelements.cpp
@@ -107,33 +111,49 @@ set(private_sources
 
 set(public_sources
     diagnostic.h
-    event.h
-    eventcall.h
     localization.h
     localizedtext.h
-    nativeappearance.h
-    path.h
-    resourceprovider.h
     system.h
     types.h
 
-    binding/valuebinding.h
     binding/eventregistration.h
+    binding/valuebinding.h
 
     css/color.h
     css/stylesheet.h
 
-    layout/buildresult.h
+    dom/document.h
+    dom/element.h
+    dom/fragment.h
+    dom/node.h
+    dom/text.h
 
-    render/openglpaintcontext.h
-    render/paintcontext.h
-    render/painttarget.h
-    render/recordingpaintcontext.h
+    event/event.h
+    event/eventcall.h
+
+    html/button.h
+    html/element.h
+    html/floater.h
+    html/icon.h
+    html/input.h
+    html/label.h
+    html/panel.h
+
+    paint/nativeappearance.h
+    paint/openglpaintcontext.h
+    paint/paintcontext.h
+    paint/painttarget.h
+    paint/path.h
+    paint/recordingpaintcontext.h
+
+    resource/buildresult.h
+    resource/resourceprovider.h
 
     skin/compiler.h
     skin/generation.h
 
     style/computedstyle.h
+    style/pseudoelement.h
 
     surface/floaterresize.h
     surface/scrollgeometry.h
@@ -141,20 +161,6 @@ set(public_sources
 
     text/keybinding.h
     text/metrics.h
-
-    html/button.h
-    html/floater.h
-    html/icon.h
-    html/input.h
-    dom/fragment.h
-    dom/document.h
-    dom/node.h
-    style/pseudoelement.h
-    html/label.h
-    html/panel.h
-    html/element.h
-    dom/element.h
-    dom/text.h
 )
 
 target_sources(ui

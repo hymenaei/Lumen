@@ -15,12 +15,12 @@ class ElementDefinitions;
 class HTMLElementFactory;
 }
 
-namespace html_detail { class FragmentParser; }
+namespace dom_detail { class FragmentParser; }
 
 class HTMLElement : public Element {
     friend class Surface;
     friend class detail::HTMLElementFactory;
-    friend class html_detail::FragmentParser;
+    friend class dom_detail::FragmentParser;
 
 protected:
     explicit HTMLElement(std::string_view localName);

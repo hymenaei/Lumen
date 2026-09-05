@@ -7,8 +7,8 @@
 #include <cmath>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include "render/svg.h"
-#include "render/tessellator.h"
+#include "paint/svg.h"
+#include "paint/tessellator.h"
 
 namespace {
 using radia::ui::compileSvgIcon;

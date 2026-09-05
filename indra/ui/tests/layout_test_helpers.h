@@ -9,8 +9,8 @@
 #include <string>
 #include <utility>
 #include "diagnostic.h"
-#include "layout/resourcecompiler.h"
-#include "resourceprovider.h"
+#include "resource/compiler.h"
+#include "resource/resourceprovider.h"
 
 namespace radia::ui::test {
 using radia::ui::DiagnosticResult;

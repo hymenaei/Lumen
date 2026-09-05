@@ -21,10 +21,10 @@
 #include "dom/element.h"
 #include "dom/elementinternal.h"
 #include "html/elementnames.h"
-#include "layout/buildresult.h"
-#include "layout/document.h"
 #include "llerror.h"
 #include "localization.h"
+#include "resource/buildresult.h"
+#include "resource/sourcedocument.h"
 #include "types.h"
 
 namespace radia::ui {

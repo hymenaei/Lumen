@@ -13,7 +13,7 @@
 #include <string_view>
 #include <vector>
 #include "diagnostic.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "style/computedstyle.h"
 
 namespace radia::ui {

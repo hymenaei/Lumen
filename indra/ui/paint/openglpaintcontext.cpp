@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "render/openglpaintcontext.h"
+#include "paint/openglpaintcontext.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -20,9 +20,9 @@
 #include "llrendertarget.h"
 #include "llshadermgr.h"
 #include "llstring.h"
-#include "render/openglpaintstate.h"
-#include "render/svg.h"
-#include "render/tessellator.h"
+#include "paint/openglpaintstate.h"
+#include "paint/svg.h"
+#include "paint/tessellator.h"
 #include "system.h"
 #include "v4color.h"
 
@@ -237,7 +237,7 @@ enum class PaintOp : GLint {
 #define GRADIENT_OP_ENTRY(name, value)
 #define OUTLINE_OP_ENTRY(name, value)
 #define PAINT_OP_ENTRY(name, value) name = value,
-#include "render/paintprotocol.def"
+#include "paint/paintprotocol.def"
 #undef PAINT_OP_ENTRY
 #undef GRADIENT_OP_ENTRY
 #undef OUTLINE_OP_ENTRY
@@ -247,7 +247,7 @@ enum class GradientOp : GLint {
 #define PAINT_OP_ENTRY(name, value)
 #define GRADIENT_OP_ENTRY(name, value) name = value,
 #define OUTLINE_OP_ENTRY(name, value)
-#include "render/paintprotocol.def"
+#include "paint/paintprotocol.def"
 #undef PAINT_OP_ENTRY
 #undef GRADIENT_OP_ENTRY
 #undef OUTLINE_OP_ENTRY
@@ -257,7 +257,7 @@ enum class OutlineOp : GLint {
 #define PAINT_OP_ENTRY(name, value)
 #define GRADIENT_OP_ENTRY(name, value)
 #define OUTLINE_OP_ENTRY(name, value) name = value,
-#include "render/paintprotocol.def"
+#include "paint/paintprotocol.def"
 #undef PAINT_OP_ENTRY
 #undef GRADIENT_OP_ENTRY
 #undef OUTLINE_OP_ENTRY

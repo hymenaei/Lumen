@@ -16,7 +16,7 @@
 #include "documentcontrollerinternal.h"
 #include "dom/elementinternal.h"
 #include "html/floater.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 
 namespace radia::viewer::ui {
 using radia::ui::ElementRef;

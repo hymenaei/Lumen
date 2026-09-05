@@ -6,7 +6,7 @@
 #include "linden_common.h"
 #include "system.h"
 #include <set>
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 #include "surface/surface.h"
 

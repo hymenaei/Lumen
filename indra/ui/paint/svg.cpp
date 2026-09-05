@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "render/svg.h"
+#include "paint/svg.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>

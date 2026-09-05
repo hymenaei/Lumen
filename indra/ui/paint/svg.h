@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 #include "diagnostic.h"
-#include "path.h"
+#include "paint/path.h"
 
 namespace radia::ui {
 struct SvgIcon {

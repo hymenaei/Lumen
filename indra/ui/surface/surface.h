@@ -12,8 +12,8 @@
 #include <vector>
 #include "css/stylesheet.h"
 #include "dom/element.h"
-#include "event.h"
-#include "nativeappearance.h"
+#include "event/event.h"
+#include "paint/nativeappearance.h"
 #include "surface/scrollgeometry.h"
 
 namespace radia::ui {

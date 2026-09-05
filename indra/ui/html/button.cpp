@@ -6,7 +6,7 @@
 #include "linden_common.h"
 #include "html/button.h"
 #include "html/elementnames.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 #include "resource/elementdefinition.h"
 #include "style/computedstyle.h"
 

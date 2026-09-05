@@ -11,7 +11,7 @@
 #include <vector>
 #include "llgl.h"
 #include "llrendertarget.h"
-#include "render/painttarget.h"
+#include "paint/painttarget.h"
 
 namespace radia::ui::paint {
 struct PaintState {

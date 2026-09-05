@@ -8,7 +8,7 @@
 #include <vector>
 #include "componentmanagerinternal.h"
 #include "documentcontrollerinternal.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "skin/generation.h"
 #include "system.h"
 

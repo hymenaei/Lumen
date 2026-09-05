@@ -9,7 +9,7 @@
 #include "html/elementfactory.h"
 #include "html/elementnames.h"
 #include "layout/engine.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 #include "resource/elementdefinition.h"
 #include "style/stylepass.h"
 #include "surface/surface.h"

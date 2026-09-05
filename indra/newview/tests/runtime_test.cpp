@@ -15,7 +15,7 @@
 #include "controllerregistration.h"
 #include "documentcontroller.h"
 #include "dom/element.h"
-#include "event.h"
+#include "event/event.h"
 #include "html/button.h"
 #include "html/floater.h"
 #include "html/panel.h"
@@ -24,7 +24,7 @@
 #include "llglslshader.h"
 #include "llsd.h"
 #include "nativeinput.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/recordingpaintcontext.h"
 #include "runtime.h"
 
 namespace {

@@ -21,12 +21,12 @@
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
-#include "layout/document.h"
 #include "layout/engine.h"
-#include "layout/resourcecompiler.h"
 #include "layout_test_helpers.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/recordingpaintcontext.h"
+#include "resource/compiler.h"
 #include "resource/elementdefinition.h"
+#include "resource/sourcedocument.h"
 #include "skin/compiler.h"
 #include "style/stylepass.h"
 #include "surface/surface.h"
@@ -34,13 +34,13 @@
 #include "text/metrics.h"
 
 namespace {
+using radia::ui::AuthoredEventCall;
 using radia::ui::Binder;
 using radia::ui::Binding;
 using radia::ui::ComputedStyle;
 using radia::ui::Element;
 using radia::ui::ElementRef;
 using radia::ui::Event;
-using radia::ui::EventCall;
 using radia::ui::FixedTextMetrics;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
@@ -78,8 +78,8 @@ ComputedStyle computedStyle(const StyleSheet& stylesheet, const Element& element
 
 void bindChangeEvent(Binder& binder, std::string name, std::function<void(const Event&)> callback) {
     binder.event(makeEventRegistration(
-        std::move(name), [callback = std::move(callback)](Event& event, const EventCall&) { callback(event); },
-        [](const EventCall& call) { return call.arguments().empty() ? nullptr : "binding.event.arity_mismatch"; }));
+        std::move(name), [callback = std::move(callback)](Event& event, const AuthoredEventCall&) { callback(event); },
+        [](const AuthoredEventCall& call) { return call.arguments().empty() ? nullptr : "binding.event.arity_mismatch"; }));
 }
 
 class FieldsetTest : public Test {

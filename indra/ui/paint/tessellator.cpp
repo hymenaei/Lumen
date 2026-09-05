@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "render/tessellator.h"
+#include "paint/tessellator.h"
 #include <algorithm>
 #include <cmath>
 #include <numbers>

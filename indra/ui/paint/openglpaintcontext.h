@@ -7,7 +7,7 @@
 
 #include <memory>
 #include <string>
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 
 class LLGLSLShader;
 

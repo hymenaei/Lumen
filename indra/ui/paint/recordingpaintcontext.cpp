@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "render/recordingpaintcontext.h"
+#include "paint/recordingpaintcontext.h"
 #include <algorithm>
 
 namespace radia::ui {

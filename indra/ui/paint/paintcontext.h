@@ -7,8 +7,8 @@
 
 #include <optional>
 #include <string>
-#include "nativeappearance.h"
-#include "render/painttarget.h"
+#include "paint/nativeappearance.h"
+#include "paint/painttarget.h"
 #include "style/computedstyle.h"
 #include "text/metrics.h"
 

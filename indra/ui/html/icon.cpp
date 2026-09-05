@@ -6,7 +6,7 @@
 #include "linden_common.h"
 #include "html/icon.h"
 #include "html/elementnames.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 #include "resource/elementdefinition.h"
 
 namespace radia::ui {

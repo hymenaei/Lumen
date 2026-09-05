@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "render/openglpaintstate.h"
+#include "paint/openglpaintstate.h"
 #include <algorithm>
 #include "llgl.h"
 #include "llrender.h"

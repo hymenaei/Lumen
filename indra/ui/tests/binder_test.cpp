@@ -19,27 +19,27 @@
 #include "binding/settingresolver.h"
 #include "binding/valuebinding.h"
 #include "dom/elementinternal.h"
-#include "event.h"
-#include "eventcall.h"
+#include "event/event.h"
+#include "event/eventcall.h"
 #include "html/button.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
-#include "layout/resourcecompiler.h"
+#include "resource/compiler.h"
 #include "resource/elementdefinition.h"
 #include "surface/surface.h"
 #include "text/metrics.h"
 
 namespace {
+using radia::ui::AuthoredEventArgument;
+using radia::ui::AuthoredEventCall;
 using radia::ui::Binder;
 using radia::ui::Binding;
-using radia::ui::CurrentEventArgument;
+using radia::ui::CurrentAuthoredEventArgument;
 using radia::ui::DiagnosticResult;
 using radia::ui::Element;
 using radia::ui::ElementRef;
 using radia::ui::Event;
-using radia::ui::EventArgument;
-using radia::ui::EventCall;
 using radia::ui::EventHandlerRegistration;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLInputElement;
@@ -68,16 +68,16 @@ using radia::ui::detail::makeElement;
 using radia::ui::detail::makeElementValue;
 using radia::ui::detail::makeEventRegistration;
 
-const char* noEventArguments(const EventCall& call) {
+const char* noAuthoredEventArguments(const AuthoredEventCall& call) {
     return call.arguments().empty() ? nullptr : "binding.event.arity_mismatch";
 }
 
-const char* currentEventArgument(const EventCall& call) {
+const char* currentAuthoredEventArgument(const AuthoredEventCall& call) {
     if (call.arguments().size() != 1) return "binding.event.arity_mismatch";
-    return std::holds_alternative<CurrentEventArgument>(call.arguments().front()) ? nullptr : "binding.event.argument_type_mismatch";
+    return std::holds_alternative<CurrentAuthoredEventArgument>(call.arguments().front()) ? nullptr : "binding.event.argument_type_mismatch";
 }
 
-template<typename T> const char* singleEventArgument(const EventCall& call) {
+template<typename T> const char* singleAuthoredEventArgument(const AuthoredEventCall& call) {
     if (call.arguments().size() != 1) return "binding.event.arity_mismatch";
     return std::holds_alternative<T>(call.arguments().front()) ? nullptr : "binding.event.argument_type_mismatch";
 }
@@ -88,7 +88,9 @@ void bindEvent(Binder& binder, std::string settingName, EventHandlerRegistration
 }
 
 template<typename Callback> void bindEvent(Binder& binder, std::string settingName, Callback callback) {
-    bindEvent(binder, std::move(settingName), [callback = std::move(callback)](Event&, const EventCall&) mutable { callback(); }, noEventArguments);
+    bindEvent(
+        binder, std::move(settingName), [callback = std::move(callback)](Event&, const AuthoredEventCall&) mutable { callback(); },
+        noAuthoredEventArguments);
 }
 
 template<typename T> class TestValueBinding final : public ValueBinding<T> {
@@ -185,7 +187,7 @@ TEST(BinderTest, KeepsCommittedEventBindingInactiveUntilActivated) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("activate"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("activate"));
     root.append(std::move(button));
 
     int activations = 0;
@@ -207,7 +209,7 @@ TEST(BinderTest, CommitsEventBindingAndResolvesTypedElement) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     button->setId("save");
-    setAuthoredEventCall(*button, kClickEvent, EventCall("save"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("save"));
     root.append(std::move(button));
 
     int activations = 0;
@@ -226,7 +228,7 @@ TEST(BinderTest, DistinguishesTypedAndMissingElementLookups) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     button->setId("save");
-    setAuthoredEventCall(*button, kClickEvent, EventCall("save"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("save"));
     HTMLButtonElement* source = button.get();
     root.append(std::move(button));
     auto label = makeElement<HTMLLabelElement>();
@@ -270,7 +272,7 @@ TEST(BinderTest, DetachesEventHandlerWhenBindingIsDestroyed) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* source = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("optional"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("optional"));
     root.append(std::move(button));
 
     source->activate();
@@ -290,17 +292,17 @@ TEST(BinderTest, AllowsOneHandlerAcrossMultipleEventTypes) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* buttonTarget = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("shared"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("shared"));
     root.append(std::move(button));
     auto control = makeElement<HTMLInputElement>();
     HTMLInputElement* controlTarget = control.get();
     control->type("checkbox").switchMode(true);
-    setAuthoredEventCall(*control, kChangeEvent, EventCall("shared"));
+    setAuthoredEventCall(*control, kChangeEvent, AuthoredEventCall("shared"));
     root.append(std::move(control));
 
     std::vector<std::string> eventTypes;
     Binder binder(root);
-    bindEvent(binder, "shared", [&](Event& event, const EventCall&) { eventTypes.emplace_back(event.type()); }, noEventArguments);
+    bindEvent(binder, "shared", [&](Event& event, const AuthoredEventCall&) { eventTypes.emplace_back(event.type()); }, noAuthoredEventArguments);
     const TestBindingResult result = finishBinding(binder);
     ASSERT_TRUE(result.ok());
     buttonTarget->activate();
@@ -316,18 +318,18 @@ TEST(BinderTest, BindsChangeEventsWithCurrentState) {
     auto control = makeElement<HTMLInputElement>();
     control->type("checkbox").switchMode(true);
     HTMLInputElement* source = control.get();
-    setAuthoredEventCall(*control, kChangeEvent, EventCall("changed", {CurrentEventArgument{}}));
+    setAuthoredEventCall(*control, kChangeEvent, AuthoredEventCall("changed", {CurrentAuthoredEventArgument{}}));
     root.append(std::move(control));
 
     int changes = 0;
     Binder binder(root);
     bindEvent(
         binder, "changed",
-        [&](Event& event, const EventCall&) {
+        [&](Event& event, const AuthoredEventCall&) {
             EXPECT_TRUE(event.checked());
             ++changes;
         },
-        currentEventArgument);
+        currentAuthoredEventArgument);
     TestBindingResult result = finishBinding(binder);
     ASSERT_TRUE(result.ok());
     source->checked(false);
@@ -384,7 +386,7 @@ TEST(BinderTest, PreparesReplacementWithoutMutatingLiveBinding) {
     auto liveButton = makeElement<HTMLButtonElement>();
     HTMLButtonElement* liveButtonPtr = liveButton.get();
     liveButton->setId("reload");
-    setAuthoredEventCall(*liveButton, kClickEvent, EventCall("reload"));
+    setAuthoredEventCall(*liveButton, kClickEvent, AuthoredEventCall("reload"));
     live.append(std::move(liveButton));
 
     ElementRef<HTMLButtonElement> reference;
@@ -399,7 +401,7 @@ TEST(BinderTest, PreparesReplacementWithoutMutatingLiveBinding) {
     auto candidateButton = makeElement<HTMLButtonElement>();
     HTMLButtonElement* candidateButtonPtr = candidateButton.get();
     candidateButton->setId("reload");
-    setAuthoredEventCall(*candidateButton, kClickEvent, EventCall("reload"));
+    setAuthoredEventCall(*candidateButton, kClickEvent, AuthoredEventCall("reload"));
     candidate.append(std::move(candidateButton));
 
     Binder candidateBinder(candidate);
@@ -430,7 +432,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterItsBoundTargetMoves) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("unused"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("unused"));
     root.append(std::move(button));
 
     Binder binder(root);
@@ -448,7 +450,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterItsBoundTargetMoves) {
 TEST(BinderTest, RejectsPreparedBindingAfterItsRootTopologyChanges) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("unused"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("unused"));
     root.append(std::move(button));
 
     Binder binder(root);
@@ -466,7 +468,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterADeclarationChanges) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("first"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("first"));
     root.append(std::move(button));
 
     Binder binder(root);
@@ -474,7 +476,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterADeclarationChanges) {
     PreparedBindingResult prepared = binder.prepare();
     ASSERT_TRUE(prepared.ok());
 
-    setAuthoredEventCall(*target, kClickEvent, EventCall("second"));
+    setAuthoredEventCall(*target, kClickEvent, AuthoredEventCall("second"));
 
     EXPECT_FALSE(static_cast<bool>(prepared.binding));
     EXPECT_FALSE(static_cast<bool>(prepared.binding.commit()));
@@ -508,7 +510,7 @@ TEST(BinderTest, AllowsUnmatchedOptionalEventHandler) {
 TEST(BinderTest, WarnsForUnhandledLayoutEvent) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("unhandled"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("unhandled"));
     root.append(std::move(button));
 
     Binder binder(root);
@@ -738,11 +740,11 @@ TEST(BinderTest, ReplacesValueBindingOnTheSameControl) {
     EXPECT_FALSE(firstProvider->state().value);
 }
 
-TEST(BinderTest, WarnsWhenEventArgumentsDoNotMatchHandler) {
+TEST(BinderTest, WarnsWhenAuthoredEventArgumentsDoNotMatchHandler) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("inspect", {EventArgument(std::int64_t(4))}));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("inspect", {AuthoredEventArgument(std::int64_t(4))}));
     root.append(std::move(button));
 
     int invocations = 0;
@@ -760,7 +762,7 @@ TEST(BinderTest, DispatchesGenericEventHandler) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("press"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("press"));
     root.append(std::move(button));
 
     int invocations = 0;
@@ -773,23 +775,23 @@ TEST(BinderTest, DispatchesGenericEventHandler) {
     EXPECT_EQ(invocations, 1);
 }
 
-TEST(BinderTest, DispatchesTypedEventArguments) {
+TEST(BinderTest, DispatchesTypedAuthoredEventArguments) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto select = makeElement<HTMLButtonElement>();
     HTMLButtonElement* selectTarget = select.get();
-    setAuthoredEventCall(*select, kClickEvent, EventCall("select", {EventArgument(std::int64_t(4))}));
+    setAuthoredEventCall(*select, kClickEvent, AuthoredEventCall("select", {AuthoredEventArgument(std::int64_t(4))}));
     root.append(std::move(select));
     auto open = makeElement<HTMLButtonElement>();
     HTMLButtonElement* openTarget = open.get();
-    setAuthoredEventCall(*open, kClickEvent, EventCall("open", {EventArgument(std::string("settings"))}));
+    setAuthoredEventCall(*open, kClickEvent, AuthoredEventCall("open", {AuthoredEventArgument(std::string("settings"))}));
     root.append(std::move(open));
     auto enabled = makeElement<HTMLButtonElement>();
     HTMLButtonElement* enabledTarget = enabled.get();
-    setAuthoredEventCall(*enabled, kClickEvent, EventCall("updateAdvanced", {EventArgument(true)}));
+    setAuthoredEventCall(*enabled, kClickEvent, AuthoredEventCall("updateAdvanced", {AuthoredEventArgument(true)}));
     root.append(std::move(enabled));
     auto inspect = makeElement<HTMLButtonElement>();
     HTMLButtonElement* inspectTarget = inspect.get();
-    setAuthoredEventCall(*inspect, kClickEvent, EventCall("inspectEventSource", {EventArgument(CurrentEventArgument{})}));
+    setAuthoredEventCall(*inspect, kClickEvent, AuthoredEventCall("inspectEventSource", {AuthoredEventArgument(CurrentAuthoredEventArgument{})}));
     root.append(std::move(inspect));
 
     int selected = 0;
@@ -798,15 +800,16 @@ TEST(BinderTest, DispatchesTypedEventArguments) {
     Element* source = nullptr;
     Binder binder(root);
     bindEvent(
-        binder, "select", [&](Event&, const EventCall& call) { selected = static_cast<int>(std::get<std::int64_t>(call.arguments().front())); },
-        singleEventArgument<std::int64_t>);
+        binder, "select",
+        [&](Event&, const AuthoredEventCall& call) { selected = static_cast<int>(std::get<std::int64_t>(call.arguments().front())); },
+        singleAuthoredEventArgument<std::int64_t>);
     bindEvent(
-        binder, "open", [&](Event&, const EventCall& call) { destination = std::get<std::string>(call.arguments().front()); },
-        singleEventArgument<std::string>);
+        binder, "open", [&](Event&, const AuthoredEventCall& call) { destination = std::get<std::string>(call.arguments().front()); },
+        singleAuthoredEventArgument<std::string>);
     bindEvent(
-        binder, "updateAdvanced", [&](Event&, const EventCall& call) { advanced = std::get<bool>(call.arguments().front()); },
-        singleEventArgument<bool>);
-    bindEvent(binder, "inspectEventSource", [&](Event& event, const EventCall&) { source = event.target(); }, currentEventArgument);
+        binder, "updateAdvanced", [&](Event&, const AuthoredEventCall& call) { advanced = std::get<bool>(call.arguments().front()); },
+        singleAuthoredEventArgument<bool>);
+    bindEvent(binder, "inspectEventSource", [&](Event& event, const AuthoredEventCall&) { source = event.target(); }, currentAuthoredEventArgument);
     TestBindingResult result = finishBinding(binder);
     ASSERT_TRUE(result.ok());
     EXPECT_EQ(result.warnings.size(), std::size_t{0});
@@ -823,7 +826,7 @@ TEST(BinderTest, DispatchesTypedEventArguments) {
 TEST(BinderTest, RejectsInvalidRegisteredHandlerName) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("bad_action"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("bad_action"));
     root.append(std::move(button));
 
     Binder binder(root);
@@ -838,7 +841,7 @@ TEST(BinderTest, DispatchesCommonElementEventContext) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
-    setAuthoredEventCall(*button, kClickEvent, EventCall("observe"));
+    setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("observe"));
     root.append(std::move(button));
 
     Element* source = nullptr;
@@ -846,11 +849,11 @@ TEST(BinderTest, DispatchesCommonElementEventContext) {
     Binder binder(root);
     bindEvent(
         binder, "observe",
-        [&](Event& event, const EventCall&) {
+        [&](Event& event, const AuthoredEventCall&) {
             source = event.target();
             type = std::string(event.type());
         },
-        noEventArguments);
+        noAuthoredEventArguments);
     const TestBindingResult result = finishBinding(binder);
     ASSERT_TRUE(result.ok());
     target->activate();

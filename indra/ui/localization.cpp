@@ -29,11 +29,11 @@
 #include <yaml-cpp/parser.h>
 #include <yaml-cpp/yaml.h>
 #include "html/elementnames.h"
-#include "html/fragmentinternal.h"
-#include "layout/document.h"
+#include "dom/fragmentinternal.h"
+#include "resource/sourcedocument.h"
 
 namespace radia::ui {
-using html_detail::isValidHTMLAttribute;
+using dom_detail::isValidHTMLAttribute;
 
 namespace {
 class StringValue {

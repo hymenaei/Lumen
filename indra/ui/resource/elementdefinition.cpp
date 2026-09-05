@@ -9,7 +9,7 @@
 #include <cctype>
 #include <unordered_map>
 #include <unordered_set>
-#include "eventcall.h"
+#include "event/eventcall.h"
 
 namespace radia::ui {
 namespace {
@@ -133,8 +133,8 @@ void applyCommonElementAttributes(const ElementBuildInput& input, Element& eleme
     if (readElementAttribute(input, "id", value)) {
         const ElementAttribute* attribute = input.find("id");
         if (value.empty() || containsHTMLWhitespace(value))
-            context.error("layout.id.invalid", "Element id must be non-empty and contain no ASCII whitespace.", input.sourceName, attribute->source.begin.line,
-                          attribute->source.begin.column);
+            context.error("layout.id.invalid", "Element id must be non-empty and contain no ASCII whitespace.", input.sourceName,
+                          attribute->source.begin.line, attribute->source.begin.column);
         else element.setId(value);
     }
     if (readElementAttribute(input, "class", value)) {
@@ -153,9 +153,9 @@ void applyCommonElementAttributes(const ElementBuildInput& input, Element& eleme
         if (!readElementAttribute(input, descriptor.attribute, value)) continue;
         const ElementAttribute* attribute = input.find(descriptor.attribute);
 
-        EventCallParseResult parsed = parseEventCall(value);
+        AuthoredEventCallParseResult parsed = parseAuthoredEventCall(value);
         if (!parsed.ok()) {
-            context.warning(eventCallParseErrorCode(parsed.error), eventCallParseErrorMessage(parsed.error), input.sourceName,
+            context.warning(authoredEventCallParseErrorCode(parsed.error), authoredEventCallParseErrorMessage(parsed.error), input.sourceName,
                             attribute->source.begin.line, attribute->source.begin.column + parsed.errorOffset);
             continue;
         }

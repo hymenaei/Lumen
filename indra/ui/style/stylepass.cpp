@@ -9,7 +9,7 @@
 #include <utility>
 #include "css/stylesheet.h"
 #include "dom/element.h"
-#include "nativeappearance.h"
+#include "paint/nativeappearance.h"
 #include "text/metrics.h"
 
 namespace radia::ui {

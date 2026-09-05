@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 #include "dom/node.h"
-#include "event.h"
+#include "event/event.h"
 #include "localizedtext.h"
 #include "types.h"
 

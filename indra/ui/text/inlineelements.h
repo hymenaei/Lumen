@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 #include "html/elementnames.h"
-#include "layout/buildresult.h"
-#include "layout/document.h"
+#include "resource/buildresult.h"
+#include "resource/sourcedocument.h"
 
 namespace radia::ui {
 class Element;

@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 
 namespace radia::ui {
 enum class PaintCommandKind {

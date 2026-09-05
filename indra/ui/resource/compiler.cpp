@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "layout/resourcecompiler.h"
+#include "resource/compiler.h"
 #include <algorithm>
 #include <cctype>
 #include <functional>
@@ -12,13 +12,13 @@
 #include <set>
 #include <unordered_set>
 #include "dom/elementinternal.h"
-#include "eventcall.h"
+#include "event/eventcall.h"
 #include "html/element.h"
 #include "html/elementfactory.h"
 #include "html/elementnames.h"
-#include "layout/document.h"
+#include "resource/sourcedocument.h"
 #include "resource/elementdefinition.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "text/inlineelements.h"
 
 namespace radia::ui {

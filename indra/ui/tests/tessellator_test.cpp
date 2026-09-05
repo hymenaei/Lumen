@@ -8,7 +8,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
-#include "render/tessellator.h"
+#include "paint/tessellator.h"
 
 namespace {
 using radia::ui::Color;

@@ -7,7 +7,7 @@
 
 #include <optional>
 #include "html/element.h"
-#include "render/paintcontext.h"
+#include "paint/paintcontext.h"
 
 namespace radia::ui {
 class HTMLLegendElement final : public HTMLElement {

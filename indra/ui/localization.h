@@ -10,7 +10,7 @@
 #include <vector>
 #include "diagnostic.h"
 #include "localizedtext.h"
-#include "resourceprovider.h"
+#include "resource/resourceprovider.h"
 #include "types.h"
 
 namespace radia::ui {

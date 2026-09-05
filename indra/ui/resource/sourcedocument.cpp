@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "layout/document.h"
+#include "resource/sourcedocument.h"
 #include <algorithm>
 #include <string_view>
 #include "html/elementnames.h"

@@ -19,7 +19,7 @@ TEST(PaintProtocolTest, MatchesPaintProtocolWithShaderConstants) {
     const std::filesystem::path newviewSourceRoot = uiSourceRoot.parent_path() / "newview";
     std::ifstream vertexFile(newviewSourceRoot / "app_settings/shaders/class1/interface/uiV.glsl");
     std::ifstream fragmentFile(newviewSourceRoot / "app_settings/shaders/class1/interface/uiF.glsl");
-    std::ifstream paintProtocolFile(uiSourceRoot / "render/paintprotocol.def");
+    std::ifstream paintProtocolFile(uiSourceRoot / "paint/paintprotocol.def");
     ASSERT_TRUE(vertexFile.good());
     ASSERT_TRUE(fragmentFile.good());
     ASSERT_TRUE(paintProtocolFile.good());

@@ -4,7 +4,7 @@
  */
 
 #include "linden_common.h"
-#include "path.h"
+#include "paint/path.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
