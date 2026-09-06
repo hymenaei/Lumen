@@ -28,6 +28,7 @@
 #include "runtime.h"
 
 namespace {
+using radia::ui::CursorStyle;
 using radia::ui::Document;
 using radia::ui::Element;
 using radia::ui::HTMLButtonElement;
@@ -73,7 +74,8 @@ KeyEvent makeKeyEvent(int key, std::uint32_t modifiers = 0, bool repeated = fals
 SkinSnapshotResult runtimeSkinSnapshot() {
     constexpr char kLocalization[] = "defaultLocale: en\n"
                                      "locales: {en: {strings: {runtime: Runtime}}}\n";
-    constexpr char kSkin[] = "floater { display: flex; flex-direction: column; } floater > head { height: 30px; } button { size: 128px 32px; }";
+    constexpr char kSkin[] = "floater { display: flex; flex-direction: column; } floater > head { height: 30px; } "
+                             "button { size: 128px 32px; cursor: pointer; }";
     constexpr char kView[] =
         "<floater resizeable><head><title>runtime</title><minimize></minimize><close></close></head><body><button id=\"press\" onClick=\"press()\"></button></body></floater>";
 
@@ -311,6 +313,48 @@ TEST_F(RuntimeTest, RoutesAttachedInputToBoundComponent) {
     EXPECT_TRUE(runtime.keyDown(makeKeyEvent(kKeyTab)).handled);
     EXPECT_TRUE(runtime.keyUp(makeKeyEvent(kKeyTab)).handled);
     EXPECT_FALSE(runtime.keyUp(makeKeyEvent(kKeyTab, kModifierControl)).handled);
+}
+
+TEST_F(RuntimeTest, KeepsCursorOwnedBetweenPointerSamples) {
+    ASSERT_TRUE(runtime.initialize());
+    ASSERT_TRUE(registerTestFloater());
+    HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
+    ASSERT_NE(floater, nullptr);
+    HTMLButtonElement* press = dynamic_cast<HTMLButtonElement*>(findElement(*floater, "press"));
+    ASSERT_NE(press, nullptr);
+    ASSERT_NE(floater->head(), nullptr);
+
+    runtime.frame(800, 600);
+    const Rect headRect = floater->head()->rect();
+    const F32 headX = headRect.x + headRect.w * 0.5f;
+    const F32 headY = headRect.y + headRect.h * 0.5f;
+    ASSERT_TRUE(runtime.pointerMove(makePointerEvent(headX, headY)).handled);
+
+    std::optional<CursorStyle> cursor = runtime.pointerCursor();
+    ASSERT_TRUE(cursor.has_value());
+    EXPECT_EQ(*cursor, CursorStyle::Default);
+
+    runtime.frame(800, 600);
+    cursor = runtime.pointerCursor();
+    ASSERT_TRUE(cursor.has_value());
+    EXPECT_EQ(*cursor, CursorStyle::Default);
+
+    const Rect pressRect = press->rect();
+    const F32 x = pressRect.x + pressRect.w * 0.5f;
+    const F32 y = pressRect.y + pressRect.h * 0.5f;
+    ASSERT_TRUE(runtime.pointerMove(makePointerEvent(x, y)).handled);
+
+    cursor = runtime.pointerCursor();
+    ASSERT_TRUE(cursor.has_value());
+    EXPECT_EQ(*cursor, CursorStyle::Pointer);
+
+    runtime.frame(800, 600);
+    cursor = runtime.pointerCursor();
+    ASSERT_TRUE(cursor.has_value());
+    EXPECT_EQ(*cursor, CursorStyle::Pointer);
+
+    EXPECT_FALSE(runtime.pointerMove(makePointerEvent(-10.f, -10.f)).handled);
+    EXPECT_FALSE(runtime.pointerCursor().has_value());
 }
 
 TEST_F(RuntimeTest, LeavesUnclaimedInputForViewerFallback) {

@@ -127,7 +127,6 @@ bool System::publishImpl(std::shared_ptr<const SkinGeneration> generation, Publi
 
     bool committed = true;
     if (commit && !commit->commit()) {
-        const bool localeChanged = mActiveLocale != previousLocale;
         mSkinGeneration = previousGeneration;
         mActiveLocale = previousLocale;
         mGenerationNumber = previousGenerationNumber;
@@ -137,7 +136,7 @@ bool System::publishImpl(std::shared_ptr<const SkinGeneration> generation, Publi
             for (SurfaceRegistrationId id : surfaceRegistrationSnapshot())
                 if (Surface* surface = surfaceForRegistration(id)) surface->generationChanged(styleSheet());
         }
-        if (localeChanged) notifyLocaleChanged();
+        notifyLocaleChanged();
         committed = false;
     }
 

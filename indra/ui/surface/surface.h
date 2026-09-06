@@ -99,6 +99,7 @@ public:
     const NativeAppearance& nativeAppearance() const;
     LayoutDirection layoutDirection() const;
     CursorStyle cursor() const;
+    std::optional<CursorStyle> pointerCursor() const;
     float width() const { return mViewport.w; }
     float height() const { return mViewport.h; }
 
@@ -180,6 +181,7 @@ private:
     bool isSurfaceRoot(const Element* element) const;
     bool hasActiveModal() const;
     Element* hitTestAt(const Vec2& point);
+    static bool acceptsPointerEvents(const Element& element, const ComputedStyle& style);
     Element* hitTestNode(Element& node, const Vec2& point, const Rect& inheritedClip, StylePass& styles) const;
     HTMLFloaterElement* resizeFloaterAt(const Vec2& point, std::uint8_t& edges) const;
     void updateResizeCursor(const Vec2& point);

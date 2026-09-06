@@ -82,7 +82,7 @@ Surface::~Surface() {
 
     clearInteractionState();
     for (const ElementRef<Element>& rootRef : mountedRoots)
-        if (Element* root = rootRef.get(); root && root->surface() == this) root->setSurface(nullptr);
+        if (Element* root = rootRef.get(); root && root->mSurface == this) root->setSurface(nullptr);
 
     for (MountList& layerMounts : mMounts) layerMounts.clear();
     if (mSystem) mSystem->unregisterSurface(*this);

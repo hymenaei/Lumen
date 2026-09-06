@@ -20,18 +20,12 @@ using detail::ElementInternalAccess;
 using detail::resizeCursor;
 using detail::ResizeEdges;
 
-namespace {
-bool acceptsPointerEvents(const Element& element, const ComputedStyle& style) {
+bool Surface::acceptsPointerEvents(const Element& element, const ComputedStyle& style) {
     const PointerEvents policy = style.pointerEvents;
     if (policy == PointerEvents::Auto) return true;
     if (policy == PointerEvents::PassThrough) return false;
     return element.pointerEvents();
 }
-
-Rect offsetRect(const Rect& rect, const Vec2& offset) {
-    return {rect.x + offset.x, rect.y + offset.y, rect.w, rect.h};
-}
-} // namespace
 
 void Surface::collectFocusable(Element& node, std::vector<ElementRef<Element>>& result, StylePass& styles) const {
     const ElementVisit observation(node);
@@ -59,7 +53,7 @@ Element* Surface::hitTestNode(Element& node, const Vec2& point, const Rect& inhe
     const Vec2 scrollTranslation = scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()});
     const Vec2 scrollOffset = clipsChildren ? Vec2{-scrollTranslation.x, -scrollTranslation.y} : Vec2{};
     Rect childClip = clipsChildren ? clipToAxes(inheritedClip, ElementInternalAccess::scrollport(*current), clipAxes) : inheritedClip;
-    if (clipsChildren) childClip = offsetRect(childClip, scrollOffset);
+    if (clipsChildren) childClip = {childClip.x + scrollOffset.x, childClip.y + scrollOffset.y, childClip.w, childClip.h};
     const Vec2 childPoint = point + scrollOffset;
     const auto children = styles.sourceChildren(*current);
     Element* hitResult = nullptr;
@@ -208,6 +202,11 @@ CursorStyle Surface::cursor() const {
         return CursorStyle::Default;
     const CursorStyle cursor = style.cursor;
     return cursor == CursorStyle::Auto ? CursorStyle::Default : cursor;
+}
+
+std::optional<CursorStyle> Surface::pointerCursor() const {
+    if (!mHovered && !mPressed && !mCaptured && !mScrollbarHover && !mScrollbarCapture && mResizeCursor == CursorStyle::Auto) return std::nullopt;
+    return cursor();
 }
 
 bool Surface::pointerMove(const PointerEvent& event) {

@@ -189,6 +189,17 @@ private:
     Element* mRoot;
 };
 
+class DestroySurfaceOnChildWillBeRemoved final : public Element {
+public:
+    explicit DestroySurfaceOnChildWillBeRemoved(std::unique_ptr<Surface>* owner) : Element("destroying"), mOwner(owner) {}
+
+protected:
+    void onChildWillBeRemoved(Element&) override { mOwner->reset(); }
+
+private:
+    std::unique_ptr<Surface>* mOwner;
+};
+
 class ObserveMountStateAtDestruction final : public Element {
 public:
     explicit ObserveMountStateAtDestruction(bool* wasMounted) : Element("probe"), mWasMounted(wasMounted) {}
@@ -490,6 +501,24 @@ TEST(FragmentTest, FullyDetachesRemainingChildrenWhenRemovalCallbackDestroysPare
 
     parentPtr->replaceChildren();
 
+    EXPECT_FALSE(remainingChildWasMounted);
+}
+
+TEST(FragmentTest, DetachesRemainingChildrenWhenRemovalCallbackDestroysSurface) {
+    auto surface = std::make_unique<Surface>();
+    auto root = makeElement<HTMLPanelElement>();
+    auto parent = std::make_unique<DestroySurfaceOnChildWillBeRemoved>(&surface);
+    DestroySurfaceOnChildWillBeRemoved* parentPtr = parent.get();
+    parent->append(makeElement<HTMLLabelElement>("first"));
+
+    bool remainingChildWasMounted = false;
+    parent->append(makeElement<ObserveMountStateAtDestruction>(&remainingChildWasMounted));
+    root->append(std::move(parent));
+    surface->mount(std::move(root));
+
+    parentPtr->replaceChildren();
+
+    EXPECT_FALSE(surface);
     EXPECT_FALSE(remainingChildWasMounted);
 }
 

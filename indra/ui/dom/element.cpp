@@ -159,7 +159,7 @@ void replaceTextContent(Element& element, std::string text) {
 Element::Element(std::string_view elementName)
     : Node(NodeType::Element), mElementName(elementName), mPrivate(std::make_unique<ElementPrivateData>()) {}
 Element::~Element() {
-    if (mSurface) mSurface->elementOwnerDestroyed(*this);
+    if (Surface* currentSurface = surface()) currentSurface->elementOwnerDestroyed(*this);
 }
 
 void Element::setAttributeValue(std::string name, std::optional<std::string> value) {
@@ -214,18 +214,20 @@ void Element::setAttribute(std::string name, std::optional<std::string> value) {
         const bool changed = !disabled();
         setState(ElementState::Disabled, true);
         setAttributeValue(std::move(name), std::move(value));
-        if (changed && mSurface) {
-            mSurface->requestHitTestRefresh();
-            mSurface->elementBecameUnavailable(*this);
+        if (changed) {
+            if (Surface* currentSurface = surface()) {
+                currentSurface->requestHitTestRefresh();
+                currentSurface->elementBecameUnavailable(*this);
+            }
         }
         return;
     }
     if (name == "hidden") {
         mVisibilityOverride = Visibility::Hidden;
         setAttributeValue(std::move(name), std::move(value));
-        if (mSurface) mSurface->requestHitTestRefresh();
+        if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
         invalidatePaint();
-        if (mSurface) mSurface->elementBecameUnavailable(*this);
+        if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
         return;
     }
     if (name == "visibility") {
@@ -235,9 +237,11 @@ void Element::setAttribute(std::string name, std::optional<std::string> value) {
             else if (*value == "visible") mVisibilityOverride = Visibility::Visible;
         }
         setAttributeValue(std::move(name), std::move(value));
-        if (mSurface) mSurface->requestHitTestRefresh();
+        if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
         invalidatePaint();
-        if (mVisibilityOverride && *mVisibilityOverride != Visibility::Visible && mSurface) mSurface->elementBecameUnavailable(*this);
+        if (mVisibilityOverride && *mVisibilityOverride != Visibility::Visible) {
+            if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
+        }
         return;
     }
     setAttributeValue(std::move(name), std::move(value));
@@ -260,20 +264,22 @@ void Element::removeAttribute(std::string_view name) {
         const bool changed = disabled();
         setState(ElementState::Disabled, false);
         removeAttributeValue(name);
-        if (changed && mSurface) mSurface->requestHitTestRefresh();
+        if (changed) {
+            if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+        }
         return;
     }
     if (name == "hidden") {
         mVisibilityOverride = Visibility::Visible;
         removeAttributeValue(name);
-        if (mSurface) mSurface->requestHitTestRefresh();
+        if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
         invalidatePaint();
         return;
     }
     if (name == "visibility") {
         mVisibilityOverride = Visibility::Visible;
         removeAttributeValue(name);
-        if (mSurface) mSurface->requestHitTestRefresh();
+        if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
         invalidatePaint();
         return;
     }
@@ -370,7 +376,7 @@ void Element::scrollTo(float left, float top) {
     mScrollPosition.inlineOffset = clampedLeft;
     mScrollPosition.blockOffset = clampedTop;
     invalidatePaint();
-    if (mSurface) mSurface->queueScrollNotification(*this);
+    if (Surface* currentSurface = surface()) currentSurface->queueScrollNotification(*this);
 }
 
 void Element::scrollBy(float deltaLeft, float deltaTop) {
@@ -395,14 +401,14 @@ void Element::setScrollMetrics(const ScrollMetrics& metrics, const Rect& scrolla
     mScrollport = scrollport;
     if (positionChanged) {
         invalidatePaint();
-        if (mSurface) mSurface->queueScrollNotification(*this);
+        if (Surface* currentSurface = surface()) currentSurface->queueScrollNotification(*this);
     }
 }
 
 Element& Element::setPointerEvents(bool pointerEvents) {
     if (mPointerEvents == pointerEvents) return *this;
     mPointerEvents = pointerEvents;
-    if (mSurface) mSurface->requestHitTestRefresh();
+    if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
     return *this;
 }
 
@@ -411,9 +417,11 @@ Element& Element::disabled(bool disabled) {
     setState(ElementState::Disabled, disabled);
     if (disabled) setAttributeValue("disabled", std::nullopt);
     else removeAttributeValue("disabled");
-    if (changed && mSurface) {
-        mSurface->requestHitTestRefresh();
-        if (disabled) mSurface->elementBecameUnavailable(*this);
+    if (changed) {
+        if (Surface* currentSurface = surface()) {
+            currentSurface->requestHitTestRefresh();
+            if (disabled) currentSurface->elementBecameUnavailable(*this);
+        }
     }
     return *this;
 }
@@ -426,9 +434,11 @@ Element& Element::setVisibility(Visibility visibility) {
         setAttributeValue("visibility",
                           visibility == Visibility::Hidden ? std::optional<std::string>("hidden") : std::optional<std::string>("collapse"));
     removeAttributeValue("hidden");
-    if (mSurface) mSurface->requestHitTestRefresh();
+    if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
     invalidatePaint();
-    if (visibility != Visibility::Visible && mSurface) mSurface->elementBecameUnavailable(*this);
+    if (visibility != Visibility::Visible) {
+        if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
+    }
     return *this;
 }
 
@@ -524,12 +534,14 @@ Element& Element::setDisplayNone(bool displayNone) {
     }
     ++mChildSnapshotRevision;
     if (mParent) ++mParent->mChildSnapshotRevision;
-    if (mSurface) {
-        mSurface->invalidateOrderingCache();
-        mSurface->requestHitTestRefresh();
+    if (Surface* currentSurface = surface()) {
+        currentSurface->invalidateOrderingCache();
+        currentSurface->requestHitTestRefresh();
     }
     invalidateMeasure();
-    if (displayNone && mSurface) mSurface->elementBecameUnavailable(*this);
+    if (displayNone) {
+        if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
+    }
     return *this;
 }
 
@@ -599,8 +611,8 @@ void Element::dispatchListeners(Event& event, bool capture) {
 
 void Element::dispatchEvent(Event& event) {
     if (!event.payloadMatchesType()) return;
-    if (mSurface) {
-        mSurface->routeEvent(event);
+    if (Surface* currentSurface = surface()) {
+        currentSurface->routeEvent(event);
         return;
     }
     const ElementRef<Element> self(this);
@@ -616,10 +628,12 @@ void Element::dispatchEvent(Event& event) {
 }
 
 void Element::setSurface(Surface* surface) {
-    if (mSurface == surface) return;
-    if (mSurface) mSurface->invalidateStyleCache();
+    if ((surface == nullptr && mSurface == nullptr) || (surface != nullptr && this->surface() == surface)) return;
+    if (Surface* previousSurface = this->surface()) previousSurface->invalidateStyleCache();
     ElementInternalAccess::layoutCache(*this) = {};
     mSurface = surface;
+    if (surface) mSurfaceLifetime = surface->mLifetime;
+    else mSurfaceLifetime.reset();
     ++ElementInternalAccess::mountEpoch(*this).value;
     const Element* expectedParent = mParent;
     const ElementRef<Element> self(this);
@@ -629,16 +643,16 @@ void Element::setSurface(Surface* surface) {
         if (Element* child = childNode->asElement()) children.emplace_back(child);
     if (const System* system = this->system()) onLocaleChanged(*system);
     Element* current = self.get();
-    if (!current || current->mSurface != surface || current->mParent != expectedParent) return;
+    if (!current || current->surface() != surface || current->mParent != expectedParent) return;
     for (const ElementRef<Element>& childRef : children)
         if (Element* child = childRef.get(); child && child->parentElement() == current) {
             child->setSurface(surface);
             current = self.get();
-            if (!current || current->mSurface != surface || current->mParent != expectedParent) return;
+            if (!current || current->surface() != surface || current->mParent != expectedParent) return;
         }
-    if (current->mSurface) {
-        current->mSurface->invalidateStyleCache();
-        current->mSurface->requestLayout();
+    if (Surface* currentSurface = current->surface()) {
+        currentSurface->invalidateStyleCache();
+        currentSurface->requestLayout();
     }
 }
 
@@ -694,11 +708,13 @@ bool Element::refreshTextContentSlots() {
 }
 
 const System* Element::system() const {
-    return mSurface ? mSurface->mSystem : nullptr;
+    const Surface* currentSurface = surface();
+    return currentSurface ? currentSurface->mSystem : nullptr;
 }
 
 const TextMetrics& Element::textMetrics() const {
-    return mSurface ? mSurface->textMetrics() : fixedTextMetrics();
+    const Surface* currentSurface = surface();
+    return currentSurface ? currentSurface->textMetrics() : fixedTextMetrics();
 }
 
 void Element::notifyTreeAttached() {
@@ -750,21 +766,21 @@ void Element::invalidateMeasure() {
     ++mLayoutInvalidationRevision;
     mInvalidationReasons.add(kArrangeInvalidationReasons);
     if (mParent) mParent->invalidateMeasure();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidateText() {
     ++mLayoutInvalidationRevision;
     mInvalidationReasons.add(kTextInvalidationReasons);
     if (mParent) mParent->invalidateMeasure();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidateArrange() {
     ++mLayoutInvalidationRevision;
     mInvalidationReasons.add(LayoutInvalidationReason::Arrange);
     if (mParent) mParent->invalidateArrange();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidateArrangeTree() {
@@ -776,7 +792,7 @@ void Element::invalidateArrangeTree() {
     };
     invalidate(invalidate, *this);
     if (mParent) mParent->invalidateArrange();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidateTextTree() {
@@ -788,7 +804,7 @@ void Element::invalidateTextTree() {
     };
     invalidate(invalidate, *this);
     if (mParent) mParent->invalidateMeasure();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidateStyleTree(bool layoutAffecting, bool propagateToDescendants) {
@@ -804,19 +820,19 @@ void Element::invalidateStyleTree(bool layoutAffecting, bool propagateToDescenda
     if (layoutAffecting) {
         ++mChildSnapshotRevision;
         if (mParent) ++mParent->mChildSnapshotRevision;
-        if (mSurface) mSurface->invalidateOrderingCache();
+        if (Surface* currentSurface = surface()) currentSurface->invalidateOrderingCache();
     }
     if (!layoutAffecting) {
-        if (mSurface) mSurface->requestPaint();
+        if (Surface* currentSurface = surface()) currentSurface->requestPaint();
         return;
     }
     if (mParent) mParent->invalidateMeasure();
-    else if (mSurface) mSurface->requestLayout();
+    else if (Surface* currentSurface = surface()) currentSurface->requestLayout();
 }
 
 void Element::invalidatePaint() {
     mInvalidationReasons.add(LayoutInvalidationReason::Paint);
-    if (mSurface) mSurface->requestPaint();
+    if (Surface* currentSurface = surface()) currentSurface->requestPaint();
 }
 
 void Element::clearPaintInvalidationTree() {
@@ -826,7 +842,8 @@ void Element::clearPaintInvalidationTree() {
 }
 
 const StyleSheet* Element::styleSheet() const {
-    return mSurface ? &mSurface->styleSheet() : nullptr;
+    if (Surface* currentSurface = surface()) return &currentSurface->styleSheet();
+    return nullptr;
 }
 
 void Element::setState(ElementState state, bool enabled) {
@@ -836,7 +853,9 @@ void Element::setState(ElementState state, bool enabled) {
     const bool layoutAffecting = !styleSheet || styleSheet->stateAffectsLayout(*this, state);
     const bool propagateToDescendants = !styleSheet || styleSheet->stateAffectsDescendants(*this, state);
     invalidateStyleTree(layoutAffecting, propagateToDescendants);
-    if (styleSheet && styleSheet->stateAffectsHitTesting(*this, state) && mSurface) mSurface->requestHitTestRefresh();
+    if (styleSheet && styleSheet->stateAffectsHitTesting(*this, state)) {
+        if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+    }
 }
 
 void Element::activate() {
@@ -855,7 +874,10 @@ void Element::activate() {
 void Element::activateFromLabel() {
     const StyleSheet* styleSheet = this->styleSheet();
     std::optional<StylePass> styles;
-    if (styleSheet) styles.emplace(*styleSheet, textMetrics(), mSurface ? mSurface->layoutDirection() : LayoutDirection::LeftToRight);
+    if (styleSheet) {
+        const Surface* currentSurface = surface();
+        styles.emplace(*styleSheet, textMetrics(), currentSurface ? currentSurface->layoutDirection() : LayoutDirection::LeftToRight);
+    }
     for (const Element* current = this; current; current = current->parentElement()) {
         if (current->disabled()) return;
         if (!current->isVisible(styles ? styles->style(*current) : ComputedStyle{})) return;
@@ -865,7 +887,7 @@ void Element::activateFromLabel() {
 
 void Element::translate(const Vec2& delta) {
     translateSubtree(delta);
-    if (mSurface) mSurface->requestHitTestRefresh();
+    if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
 }
 
 void Element::translateSubtree(const Vec2& delta) {

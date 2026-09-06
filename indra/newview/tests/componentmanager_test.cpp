@@ -126,6 +126,27 @@ private:
     std::function<void()> mCallback;
 };
 
+struct CandidateCloseState {
+    bool armed = false;
+    HTMLFloaterElement* target = nullptr;
+};
+
+class CloseOnValueStateController final : public DocumentController {
+public:
+    CloseOnValueStateController(System& system, Document& document, std::shared_ptr<CandidateCloseState> state)
+        : DocumentController(system, document) {
+        auto* root = dynamic_cast<HTMLFloaterElement*>(document.documentElement());
+        auto* input = dynamic_cast<HTMLInputElement*>(getElementById("setting"));
+        if (root && input)
+            mSubscription = input->observeValueState([root, state = std::move(state)](const auto&) {
+                if (state->armed && state->target == root) root->close();
+            });
+    }
+
+private:
+    ValueBindingSubscription mSubscription;
+};
+
 class ComponentManagerTest : public Test {
 protected:
     struct ControllerState {
@@ -682,6 +703,32 @@ TEST_F(ComponentManagerTest, ReplacesOpenComponentWithoutChangingItsIdentity) {
     EXPECT_EQ(controllerState.reloadFailureCount, 1);
 }
 
+TEST_F(ComponentManagerTest, RejectsCandidateClosedDuringControllerActivation) {
+    const auto closeState = std::make_shared<CandidateCloseState>();
+    ASSERT_TRUE(manager.registerDefinition("closing", "one.html", [closeState](System& system, Document& document) {
+        return std::make_unique<CloseOnValueStateController>(system, document, closeState);
+    }));
+    const auto opened = manager.open("closing");
+    ASSERT_TRUE(opened.ok());
+    HTMLFloaterElement* original = opened.floater;
+
+    const SkinGenerationPrepareResult generation = prepareGeneration();
+    ASSERT_TRUE(generation.ok());
+    auto prepared = manager.prepareReplacement(generation.generation, "en");
+    ASSERT_TRUE(prepared.ok());
+
+    host.afterReplacement = [this, closeState](HTMLFloaterElement& candidate) {
+        if (closeState->target) return;
+        closeState->target = &candidate;
+        closeState->armed = true;
+        resolver.binding->write(false);
+    };
+
+    EXPECT_FALSE(prepared.replacement.commit());
+    ASSERT_EQ(host.mounted.size(), std::size_t{1});
+    EXPECT_NE(host.mounted.find(original), host.mounted.end());
+}
+
 TEST_F(ComponentManagerTest, PreparesReplacementAgainstTheCurrentGeneration) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
@@ -1075,6 +1122,50 @@ TEST_F(ComponentManagerTest, OpensFloaterWithLocalizedContent) {
     ASSERT_NE(press, nullptr);
     press->activate();
     EXPECT_EQ(controllerState.pressCount, 1);
+}
+
+TEST_F(ComponentManagerTest, RestoresLocalizedContentAfterReplacementRollback) {
+    constexpr char kView[] = "<floater><head><title>localized</title><close></close></head>"
+                             "<body><p id=\"status\"></p><p id=\"localized\">{{localized.title}}</p>"
+                             "<button id=\"press\" onClick=\"press()\"></button></body></floater>";
+
+    ResourceSnapshot oldResources;
+    oldResources.add("localization.yaml", "defaultLocale: en\nlocales: {en: {strings: {localized.title: Old}}}\n");
+    oldResources.add("skin.css", "");
+    oldResources.add("localized.html", kView);
+    const SkinGenerationPrepareResult oldGeneration = SkinCompiler().prepare(std::move(oldResources));
+    ASSERT_TRUE(oldGeneration.ok());
+    ASSERT_TRUE(system.publish(oldGeneration.generation));
+    ASSERT_TRUE(registerLocalized());
+
+    const auto opened = manager.open("localized");
+    ASSERT_TRUE(opened.ok());
+    auto* originalText = findElement(*opened.floater, "localized");
+    ASSERT_NE(originalText, nullptr);
+    EXPECT_EQ(originalText->textContent(), "Old");
+
+    ResourceSnapshot candidateResources;
+    candidateResources.add("localization.yaml", "defaultLocale: en\nlocales: {en: {strings: {localized.title: Candidate}}}\n");
+    candidateResources.add("skin.css", "");
+    candidateResources.add("localized.html", kView);
+    const SkinGenerationPrepareResult candidateGeneration = SkinCompiler().prepare(std::move(candidateResources));
+    ASSERT_TRUE(candidateGeneration.ok());
+    auto prepared = manager.prepareReplacement(candidateGeneration.generation, "en");
+    ASSERT_TRUE(prepared.ok());
+
+    bool closeCandidate = true;
+    host.afterReplacement = [&closeCandidate](HTMLFloaterElement& candidate) {
+        if (closeCandidate) {
+            candidate.close();
+            closeCandidate = false;
+        }
+    };
+
+    EXPECT_FALSE(system.publish(candidateGeneration.generation, prepared.replacement));
+    ASSERT_EQ(host.mounted.size(), std::size_t{1});
+    auto* restoredText = findElement(*opened.floater, "localized");
+    ASSERT_NE(restoredText, nullptr);
+    EXPECT_EQ(restoredText->textContent(), "Old");
 }
 
 TEST_F(ComponentManagerTest, RejectsEventHandlerRegisteredForAnotherControllerType) {

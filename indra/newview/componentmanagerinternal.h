@@ -68,7 +68,6 @@ struct ComponentManager::Impl final {
     };
 
     struct RetainedMount {
-        ComponentInstanceKey componentKey;
         std::unique_ptr<Document> document;
         std::unique_ptr<DocumentController> controller;
         ElementRef<HTMLFloaterElement> root;
@@ -98,8 +97,7 @@ struct ComponentManager::Impl final {
     bool reservePublication();
     void releasePublication();
     bool retryRetainedMounts();
-    bool unmountOrRetain(ComponentInstanceKey componentKey, std::unique_ptr<Document> document, std::unique_ptr<DocumentController> controller,
-                         HTMLFloaterElement& root);
+    bool unmountOrRetain(std::unique_ptr<Document> document, std::unique_ptr<DocumentController> controller, HTMLFloaterElement& root);
     bool discardMountedInstance(std::map<ComponentInstanceKey, Instance>::iterator found);
     std::vector<OpenComponentSnapshot> openSnapshot() const;
     void rootClosed(const ComponentInstanceKey& key, HTMLFloaterElement* root);

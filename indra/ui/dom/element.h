@@ -273,7 +273,7 @@ protected:
     void invalidatePaint();
     const StyleSheet* styleSheet() const;
     const System* system() const;
-    Surface* surface() const { return mSurface; }
+    Surface* surface() const { return mSurface && !mSurfaceLifetime.expired() ? mSurface : nullptr; }
     const TextMetrics& textMetrics() const;
     virtual void onActivate() {}
     virtual void onLabelActivate() { activate(); }
@@ -367,6 +367,7 @@ private:
     std::unique_ptr<detail::AuthoredEventStore> mAuthoredEventStore;
     std::vector<EventListener> mEventListeners;
     Surface* mSurface = nullptr;
+    std::weak_ptr<char> mSurfaceLifetime;
     uint16_t mStates = 0;
     std::optional<bool> mPointerEvents;
     std::optional<Visibility> mVisibilityOverride;

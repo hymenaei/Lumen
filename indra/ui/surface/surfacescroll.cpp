@@ -37,9 +37,6 @@ Vec2 defaultWheelDelta(const WheelEvent& event, LayoutDirection direction) {
     const float vertical = shiftToHorizontal ? 0.f : event.dy;
     return {direction == LayoutDirection::RightToLeft ? -horizontal : horizontal, vertical};
 }
-Rect offsetRect(const Rect& rect, const Vec2& offset) {
-    return {rect.x + offset.x, rect.y + offset.y, rect.w, rect.h};
-}
 
 bool acceptsWheelScrolling(Overflow overflow) {
     return overflow == Overflow::Auto || overflow == Overflow::Scroll;
@@ -67,7 +64,7 @@ std::optional<Surface::ScrollbarTarget> Surface::hitTestScrollbarNode(Element& n
     if (!current || !observation.layoutValid() || !observation.styleValid() || !isRootedInSurface(current) || !current->isVisible(style))
         return std::nullopt;
 
-    if (style.pointerEvents != PointerEvents::PassThrough) {
+    if (acceptsPointerEvents(*current, style)) {
         const ScrollGeometry geometry = scrollbarGeometry(*current, style);
         const ScrollbarHit hit = hitTestScrollbar(geometry, point);
         if (hit.valid()) return ScrollbarTarget{current, geometry, hit};
@@ -80,7 +77,7 @@ std::optional<Surface::ScrollbarTarget> Surface::hitTestScrollbarNode(Element& n
     const Vec2 scrollTranslation = scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()});
     const Vec2 scrollOffset = clipsChildren ? Vec2{-scrollTranslation.x, -scrollTranslation.y} : Vec2{};
     Rect childClip = clipsChildren ? clipToAxes(inheritedClip, ElementInternalAccess::scrollport(*current), clipAxes) : inheritedClip;
-    if (clipsChildren) childClip = offsetRect(childClip, scrollOffset);
+    if (clipsChildren) childClip = {childClip.x + scrollOffset.x, childClip.y + scrollOffset.y, childClip.w, childClip.h};
     const Vec2 childPoint = point + scrollOffset;
     const auto children = styles.sourceChildren(*current);
     for (auto child = children->rbegin(); child != children->rend(); ++child)
@@ -143,6 +140,7 @@ bool Surface::beginScrollbarInteraction(const ScrollbarTarget& target, const Vec
         StylePass& styles = stylePass();
         const StylePass::TraversalScope traversal = styles.enterTraversal();
         const ComputedStyle& style = styles.style(*element);
+        if (!acceptsPointerEvents(*element, style)) return false;
         const ScrollGeometry geometry = scrollbarGeometry(*element, style);
         const ScrollbarAxisGeometry* axis = scrollbarAxisGeometry(geometry, target.hit.axis);
         if (!axis || !axis->visible) return false;

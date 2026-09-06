@@ -119,12 +119,12 @@ bool ComponentManager::Impl::retryRetainedMounts() {
     return allReleased;
 }
 
-bool ComponentManager::Impl::unmountOrRetain(ComponentInstanceKey componentKey, std::unique_ptr<Document> document,
-                                             std::unique_ptr<DocumentController> controller, HTMLFloaterElement& root) {
+bool ComponentManager::Impl::unmountOrRetain(std::unique_ptr<Document> document, std::unique_ptr<DocumentController> controller,
+                                             HTMLFloaterElement& root) {
     root.setLifecycleCallbacks({}, {});
     if (host.unmount(root)) return true;
     root.close();
-    retainedMounts.push_back({std::move(componentKey), std::move(document), std::move(controller), ElementRef<HTMLFloaterElement>(&root)});
+    retainedMounts.push_back({std::move(document), std::move(controller), ElementRef<HTMLFloaterElement>(&root)});
     return false;
 }
 
@@ -139,7 +139,7 @@ bool ComponentManager::Impl::discardMountedInstance(std::map<ComponentInstanceKe
     if (rootKey != rootKeys.end() && rootKey->second == componentKey) rootKeys.erase(rootKey);
     pendingEvictions.erase(componentKey);
     instances.erase(found);
-    return unmountOrRetain(componentKey, std::move(document), std::move(controller), *root);
+    return unmountOrRetain(std::move(document), std::move(controller), *root);
 }
 
 std::vector<ComponentManager::Impl::OpenComponentSnapshot> ComponentManager::Impl::openSnapshot() const {
@@ -342,13 +342,13 @@ ComponentOpenResult ComponentManager::open(const std::string& definitionId, cons
     }
     if (!operation.valid()) {
         controller->deactivate();
-        mImpl->unmountOrRetain(component, std::move(document), std::move(controller), *floater);
+        mImpl->unmountOrRetain(std::move(document), std::move(controller), *floater);
         result.error("floater.transaction.reentrant", "A component mutation was requested while mounting a component.");
         return result;
     }
     if (!controller->activate()) {
         controller->deactivate();
-        mImpl->unmountOrRetain(component, std::move(document), std::move(controller), *floater);
+        mImpl->unmountOrRetain(std::move(document), std::move(controller), *floater);
         result.error("floater.controller.activation_invalid",
                      "HTMLFloaterElement controller could not activate its mounted binding: " + persistenceKey + ".");
         return result;
@@ -362,7 +362,7 @@ ComponentOpenResult ComponentManager::open(const std::string& definitionId, cons
         mImpl->instances.try_emplace(component, component, instance.resource, std::move(instance.document), std::move(instance.controller));
     if (!insertedNew) {
         instance.controller->deactivate();
-        mImpl->unmountOrRetain(component, std::move(instance.document), std::move(instance.controller), *floater);
+        mImpl->unmountOrRetain(std::move(instance.document), std::move(instance.controller), *floater);
         result.floater = nullptr;
         result.error("floater.transaction.identity_conflict", "The component identity was claimed during mount: " + persistenceKey + ".");
         return result;

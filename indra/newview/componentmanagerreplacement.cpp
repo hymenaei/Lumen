@@ -16,6 +16,7 @@ namespace radia::viewer::ui {
 using componentmanager_internal::attachRootLifecycle;
 using componentmanager_internal::isClosed;
 using componentmanager_internal::takeFloaterDocument;
+using radia::ui::ElementRef;
 using radia::ui::ResourceBuildResult;
 
 ComponentManager::PreparedReplacement::State::~State() {
@@ -233,7 +234,16 @@ bool ComponentManager::PreparedReplacement::State::currentRootsOpen(const Compon
 bool ComponentManager::PreparedReplacement::State::activateComponents(ComponentManager::Impl& impl,
                                                                       ComponentManager::Impl::MutationScope& operation) {
     for (PendingComponent& component : components) {
-        if (operation.valid() && currentRootsOpen(impl) && !isClosed(*component.candidate) && component.controller->activate()) continue;
+        const ElementRef<HTMLFloaterElement> candidate(component.candidate);
+        if (operation.valid()
+            && currentRootsOpen(impl)
+            && !isClosed(*component.candidate)
+            && component.controller->activate()
+            && operation.valid()
+            && currentRootsOpen(impl)
+            && candidate
+            && !isClosed(*candidate))
+            continue;
         diagnostics.error("floater.controller.activation_invalid",
                           "HTMLFloaterElement controller could not activate its mounted binding: " + component.componentKey.persistenceKey() + ".");
         if (!restoreCurrentState(impl))
@@ -293,8 +303,8 @@ bool ComponentManager::PreparedReplacement::State::commit() {
     const std::weak_ptr<ComponentManager::Impl> weakManager = impl;
     for (PendingComponent& component : components) {
         ComponentManager::Impl::Instance& instance = *component.instance;
-        instance.document = std::move(component.replacement);
         instance.controller = std::move(component.controller);
+        instance.document = std::move(component.replacement);
         HTMLFloaterElement* current = instance.root;
         HTMLFloaterElement* root = component.candidate;
         impl->rootKeys.erase(current);

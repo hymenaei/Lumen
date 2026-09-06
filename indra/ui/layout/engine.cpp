@@ -10,8 +10,9 @@
 namespace radia::ui {
 Vec2 LayoutEngine::measure(Element& node, const StyleSheet& styleSheet, const TextMetrics& textMetrics, std::optional<float> outerWidth,
                            std::optional<float> outerHeight) {
-    const ScrollLayoutOptions scrollOptions = node.mSurface ? node.mSurface->scrollLayoutOptions() : ScrollLayoutOptions{};
-    LayoutPass pass(styleSheet, textMetrics, node.mSurface ? node.mSurface->layoutDirection() : LayoutDirection::LeftToRight, scrollOptions);
+    const Surface* surface = node.surface();
+    const ScrollLayoutOptions scrollOptions = surface ? surface->scrollLayoutOptions() : ScrollLayoutOptions{};
+    LayoutPass pass(styleSheet, textMetrics, surface ? surface->layoutDirection() : LayoutDirection::LeftToRight, scrollOptions);
     return measure(node, pass, outerWidth, outerHeight);
 }
 

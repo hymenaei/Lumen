@@ -107,8 +107,20 @@ bool Binding::activate() {
     }
     *mActive = true;
     for (const ValueAttachment& attachment : mValueAttachments) {
+        if (attachment.lifetime.expired()) {
+            deactivate();
+            return false;
+        }
         ElementRef<HTMLInputElement> input(attachment.element);
-        if (input) input->synchronizeValueBinding();
+        if (!input) {
+            deactivate();
+            return false;
+        }
+        input->synchronizeValueBinding();
+        if (!input) {
+            deactivate();
+            return false;
+        }
     }
     return true;
 }

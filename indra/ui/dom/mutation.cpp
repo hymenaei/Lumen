@@ -21,7 +21,7 @@ void NodeMutation::validateChild(const Node& parent, const Node* child) {
     llassert_always(child->nodeType() != NodeType::Document);
     llassert_always(child->nodeType() != NodeType::Fragment);
     llassert_always(!child->parentNode());
-    if (const Element* element = child->asElement()) llassert_always(!element->mSurface);
+    if (const Element* element = child->asElement()) llassert_always(!element->surface());
     for (const Node* current = &parent; current; current = current->parentNode()) llassert_always(current != child);
 }
 
@@ -32,13 +32,13 @@ void NodeMutation::adopt(const Document& document, Node& node) {
 void NodeMutation::adopt(Node& node, const std::shared_ptr<DocumentIdentity>& identity) {
     llassert_always(node.nodeType() != NodeType::Document);
     llassert_always(!node.parentNode());
-    if (Element* element = node.asElement()) llassert_always(!element->mSurface);
+    if (Element* element = node.asElement()) llassert_always(!element->surface());
     assignDocumentIdentity(node, identity);
 }
 
 void NodeMutation::validateDetachedSubtree(const Node& node) {
     if (const Element* element = node.asElement()) {
-        llassert_always(!element->mSurface);
+        llassert_always(!element->surface());
         for (const Node& child : nodes(*element)) validateDetachedSubtree(child);
     } else if (const Fragment* fragment = node.asFragment()) {
         for (const NodePtr& child : fragment->mChildren) validateDetachedSubtree(*child);
@@ -119,11 +119,10 @@ void NodeMutation::notifyAncestorWillBeRemoved(Element& parent, Element& child) 
     }
 }
 
-void NodeMutation::detachElementChild(Element& parent, Node& node, Surface* surface) {
+void NodeMutation::detachElementChild(Element& parent, Node& node, Surface* surface, const std::weak_ptr<char>& surfaceLifetime) {
     Element* child = node.asElement();
     const ElementRef<Element> parentLifetime(&parent);
     const ElementRef<Element> childLifetime(child);
-    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
 
     if (child && parentLifetime) {
         parent.onChildWillBeRemoved(*child);
@@ -139,17 +138,17 @@ void NodeMutation::detachElementChild(Element& parent, Node& node, Surface* surf
     if (childLifetime) child->notifyTreeDetached();
     if (parentLifetime) notifyAncestorRemoved(parent, *child);
     if (surface && !surfaceLifetime.expired() && childLifetime) surface->elementBecameUnavailable(*child);
-    if (childLifetime && (!surface || !surfaceLifetime.expired())) child->setSurface(nullptr);
+    if (childLifetime) child->setSurface(nullptr);
 }
 
-void NodeMutation::detachOrphanedChild(Node& node, Surface* surface) {
+void NodeMutation::detachOrphanedChild(Node& node, Surface* surface, const std::weak_ptr<char>& surfaceLifetime) {
     NodeAccess::setParent(node, nullptr);
     Element* child = node.asElement();
     if (!child) return;
 
     const ElementRef<Element> childLifetime(child);
     if (childLifetime) child->notifyTreeDetached();
-    if (surface && childLifetime) surface->elementBecameUnavailable(*child);
+    if (surface && !surfaceLifetime.expired() && childLifetime) surface->elementBecameUnavailable(*child);
     if (childLifetime) child->setSurface(nullptr);
 }
 
@@ -159,7 +158,8 @@ void NodeMutation::attachElementChild(Element& parent, Node& node) {
 
 void NodeMutation::detachAll(Element& parent) {
     clearTextSlots(parent);
-    Surface* surface = parent.mSurface;
+    Surface* surface = parent.surface();
+    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
     const ElementRef<Element> parentLifetime(&parent);
     NodeOwners children = std::move(parent.mChildren);
     parent.mChildren.clear();
@@ -169,10 +169,10 @@ void NodeMutation::detachAll(Element& parent) {
     parent.invalidateMeasure();
     for (NodePtr& child : children) {
         if (!parentLifetime) {
-            detachOrphanedChild(*child, surface);
+            detachOrphanedChild(*child, surface, surfaceLifetime);
             continue;
         }
-        detachElementChild(parent, *child, surface);
+        detachElementChild(parent, *child, surface, surfaceLifetime);
     }
     if (!parentLifetime) return;
     parent.onChildrenCleared();
@@ -219,11 +219,11 @@ Node* NodeMutation::insertElementChildren(Element& parent, NodeOwners children, 
     }
     ++parent.mChildSnapshotRevision;
     ++parent.mChildTopologyRevision;
-    if (parent.mSurface) parent.mSurface->invalidateOrderingCache();
+    if (Surface* surface = parent.surface()) surface->invalidateOrderingCache();
     if (!parent.mSuppressTextSlots) parent.mTextContentSlots.clear();
     parent.invalidateMeasure();
     for (const ElementRef<Element>& childRef : elementRefs) {
-        if (Element* child = childRef.get()) child->setSurface(parent.mSurface);
+        if (Element* child = childRef.get()) child->setSurface(parent.surface());
         if (!parentLifetime) return firstLifetime.get();
     }
 
@@ -301,14 +301,16 @@ NodePtr NodeMutation::replaceElementChild(Element& parent, Node& child, Fragment
     const NodeRef referenceLifetime(next == parent.mChildren.end() ? nullptr : next->get());
     const bool flowBreakBefore = NodeAccess::flowBreakBefore(child);
     const ElementRef<Element> parentLifetime(&parent);
+    Surface* surface = parent.surface();
+    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
     NodePtr detached = std::move(*found);
     parent.mChildren.erase(found);
     ++parent.mChildSnapshotRevision;
     ++parent.mChildTopologyRevision;
-    if (parent.mSurface) parent.mSurface->invalidateOrderingCache();
+    if (surface) surface->invalidateOrderingCache();
     clearTextSlots(parent);
     parent.invalidateMeasure();
-    detachElementChild(parent, *detached, parent.mSurface);
+    detachElementChild(parent, *detached, surface, surfaceLifetime);
     if (!parentLifetime) return detached;
 
     NodeOwners children = std::move(replacement->mChildren);
@@ -355,7 +357,8 @@ Node* NodeMutation::replaceElementRange(Element& parent, Node& first, Node& last
     const NodeRef referenceLifetime(next == parent.mChildren.end() ? nullptr : next->get());
     const bool flowBreakBefore = NodeAccess::flowBreakBefore(first);
     const ElementRef<Element> parentLifetime(&parent);
-    Surface* surface = parent.mSurface;
+    Surface* surface = parent.surface();
+    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
 
     NodeOwners removed;
     for (auto current = firstFound; current != lastFound + 1; ++current) removed.push_back(std::move(*current));
@@ -367,10 +370,10 @@ Node* NodeMutation::replaceElementRange(Element& parent, Node& first, Node& last
     parent.invalidateMeasure();
     for (NodePtr& node : removed) {
         if (!parentLifetime) {
-            detachOrphanedChild(*node, surface);
+            detachOrphanedChild(*node, surface, surfaceLifetime);
             continue;
         }
-        detachElementChild(parent, *node, surface);
+        detachElementChild(parent, *node, surface, surfaceLifetime);
     }
     if (!parentLifetime) return nullptr;
 
@@ -444,14 +447,16 @@ NodePtr NodeMutation::replace(Element& parent, Node& child, NodePtr replacement)
     const NodeRef referenceLifetime(next == parent.mChildren.end() ? nullptr : next->get());
     const bool flowBreakBefore = NodeAccess::flowBreakBefore(child);
     const ElementRef<Element> parentLifetime(&parent);
+    Surface* surface = parent.surface();
+    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
     NodePtr detached = std::move(*found);
     parent.mChildren.erase(found);
     ++parent.mChildSnapshotRevision;
     ++parent.mChildTopologyRevision;
-    if (parent.mSurface) parent.mSurface->invalidateOrderingCache();
+    if (surface) surface->invalidateOrderingCache();
     clearTextSlots(parent);
     parent.invalidateMeasure();
-    detachElementChild(parent, *detached, parent.mSurface);
+    detachElementChild(parent, *detached, surface, surfaceLifetime);
     if (!parentLifetime) return detached;
     Node* reference = referenceLifetime.get();
     if (!reference || reference->parentNode() != &parent) reference = nullptr;
@@ -489,14 +494,16 @@ Node* NodeMutation::replaceRange(Element& parent, Node& first, Node& last, Fragm
 NodePtr NodeMutation::remove(Element& parent, Node& child) {
     auto found = findChild(parent.mChildren, child);
     const ElementRef<Element> parentLifetime(&parent);
+    Surface* surface = parent.surface();
+    const std::weak_ptr<char> surfaceLifetime = surface ? surface->mLifetime : std::weak_ptr<char>();
     NodePtr detached = std::move(*found);
     parent.mChildren.erase(found);
     ++parent.mChildSnapshotRevision;
     ++parent.mChildTopologyRevision;
-    if (parent.mSurface) parent.mSurface->invalidateOrderingCache();
+    if (surface) surface->invalidateOrderingCache();
     clearTextSlots(parent);
     parent.invalidateMeasure();
-    detachElementChild(parent, *detached, parent.mSurface);
+    detachElementChild(parent, *detached, surface, surfaceLifetime);
     if (!parentLifetime) return detached;
     return detached;
 }
@@ -517,7 +524,7 @@ NodePtr NodeMutation::remove(Document& parent, Node& child) {
     NodePtr detached = std::move(parent.mChildren.front());
     parent.mChildren.clear();
     NodeAccess::setParent(*detached, nullptr);
-    if (element->mSurface) llassert_always(element->mSurface->unmountBorrowed(*element));
+    if (Surface* surface = element->surface()) llassert_always(surface->unmountBorrowed(*element));
     element->notifyTreeDetached();
     return detached;
 }

@@ -23,9 +23,9 @@
 #include "llviewercontrol.h"
 #include "llviewershadermgr.h"
 #include "llwindow.h"
-#include "reloadcoordinator.h"
 #include "paint/openglpaintcontext.h"
 #include "paint/paintcontext.h"
+#include "reloadcoordinator.h"
 #include "resources.h"
 #include "settingsadapter.h"
 #include "skinpreparation.h"
@@ -251,7 +251,7 @@ public:
         if (!isInteractive()) return {};
         const bool handled = surface().pointerMove(event);
         setDragCursorClipping(dragCursorClippingRequired());
-        return {handled, handled ? std::optional<CursorStyle>(surface().cursor()) : std::nullopt};
+        return {handled};
     }
 
     void pointerLeave() {
@@ -271,18 +271,18 @@ public:
         return handled;
     }
 
-    InputDispatchResult pointerDown(const PointerEvent& event) { return {dispatchPointerButton(event, true), std::nullopt}; }
+    InputDispatchResult pointerDown(const PointerEvent& event) { return {dispatchPointerButton(event, true)}; }
 
-    InputDispatchResult pointerUp(const PointerEvent& event) { return {dispatchPointerButton(event, false), std::nullopt}; }
+    InputDispatchResult pointerUp(const PointerEvent& event) { return {dispatchPointerButton(event, false)}; }
 
-    InputDispatchResult scroll(const WheelEvent& event) { return {isInteractive() && surface().scroll(event), std::nullopt}; }
+    InputDispatchResult scroll(const WheelEvent& event) { return {isInteractive() && surface().scroll(event)}; }
 
     InputDispatchResult keyDown(const KeyEvent& event) {
         const bool ownsTab =
             mState == RuntimeState::Running && mInitialization == InitializationState::Ready && mSurfaceState.visible && isSurfaceTab(event);
         const bool handled = (isInteractive() || ownsTab) && surface().keyDown(event);
         if (isSurfaceTab(event)) mTabKeyOwned = ownsTab;
-        return {handled || ownsTab, std::nullopt};
+        return {handled || ownsTab};
     }
 
     InputDispatchResult keyUp(const KeyEvent& event) {
@@ -290,12 +290,18 @@ public:
         const bool owned = tabKey && mTabKeyOwned;
         if (tabKey) mTabKeyOwned = false;
         const bool handled = (isInteractive() || owned) && surface().keyUp(event);
-        return {owned || handled, std::nullopt};
+        return {owned || handled};
     }
 
-    InputDispatchResult character(std::uint32_t codepoint) { return {isInteractive() && surface().charInput(codepoint), std::nullopt}; }
+    InputDispatchResult character(std::uint32_t codepoint) { return {isInteractive() && surface().charInput(codepoint)}; }
 
     bool hasPointerCapture() const { return surface().hasPointerCapture(); }
+
+    std::optional<CursorStyle> pointerCursor() {
+        if (!isInteractive()) return std::nullopt;
+        surface().refreshHover();
+        return surface().pointerCursor();
+    }
 
     void clearInteraction() {
         if (mInitialization != InitializationState::Uninitialized) surface().clearInteractionState();
@@ -545,6 +551,10 @@ void Runtime::idle() {
 
 bool Runtime::hasPointerCapture() const {
     return mImpl->hasPointerCapture();
+}
+
+std::optional<CursorStyle> Runtime::pointerCursor() {
+    return mImpl->pointerCursor();
 }
 
 InputDispatchResult Runtime::pointerMove(const PointerEvent& event) {

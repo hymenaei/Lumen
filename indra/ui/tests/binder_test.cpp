@@ -608,6 +608,36 @@ TEST(BinderTest, DeactivatesValueBindingWhileItsRootIsUnmounted) {
     EXPECT_FALSE(inputPointer->checked());
 }
 
+TEST(BinderTest, RejectsDestroyedValueAttachmentDuringActivation) {
+    ResourceBuildResult buildResult =
+        ResourceCompiler().buildElementTreeFromString("<panel><input id=\"first\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\">"
+                                                      "<input id=\"second\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\"></panel>",
+                                                      "binding-reentrant.html");
+    ASSERT_TRUE(buildResult.ok());
+    HTMLPanelElement* root = buildResult.rootAs<HTMLPanelElement>();
+    ASSERT_NE(root, nullptr);
+    HTMLInputElement* first = dynamic_cast<HTMLInputElement*>(findElementInScope(*root, "first"));
+    HTMLInputElement* second = dynamic_cast<HTMLInputElement*>(findElementInScope(*root, "second"));
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+
+    auto provider = std::make_shared<TestValueBinding<bool>>(true);
+    TestSettingResolver resolver;
+    resolver.add("demo-enabled", provider);
+    Binder binder(*root, &resolver);
+    PreparedBindingResult prepared = binder.prepare();
+    ASSERT_TRUE(prepared.ok());
+    Binding binding = prepared.binding.commit();
+    ASSERT_TRUE(binding);
+
+    first->checked(false);
+    const ElementRef<HTMLInputElement> secondRef(second);
+    const ValueBindingSubscription destroySecond = first->observeValueState([second](const auto&) { second->remove(); });
+
+    EXPECT_FALSE(binding.activate());
+    EXPECT_EQ(secondRef.get(), nullptr);
+}
+
 TEST(BinderTest, ResynchronizesValueBindingWhenRootRemounts) {
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(
         "<panel><input id=\"control\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\"></panel>", "binding-remount.html");

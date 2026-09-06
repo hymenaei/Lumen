@@ -229,6 +229,7 @@
 #include "llwindowwin32.h" // For AltGr handling
 #endif
 
+using radia::ui::CursorStyle;
 using radia::ui::KeybindingPresentation;
 using radia::ui::Vec2;
 using radia::viewer::ui::InputDispatchResult;
@@ -3943,6 +3944,7 @@ void LLViewerWindow::updateUI()
 
     bool handled = false;
     bool hoverHandled = false;
+    std::optional<CursorStyle> radiaCursor;
     const bool pointerCaptured = mUIRuntime && mUIRuntime->hasPointerCapture();
     if (const std::optional<NativePointerInput> pending = takePointerMoveForFrame(
             mPendingPointerMove, uiVisible, mMouseInWindow, pointerCaptured, static_cast<U32>(mask),
@@ -3951,7 +3953,14 @@ void LLViewerWindow::updateUI()
         const InputDispatchResult result = mUIRuntime->pointerMove(translatePointerInput(*pending));
         handled = result.handled;
         hoverHandled = result.handled;
-        if (result.cursor) mWindow->setCursor(translateCursor(*result.cursor));
+    }
+
+    if (mUIRuntime && (mMouseInWindow || pointerCaptured)) {
+        radiaCursor = mUIRuntime->pointerCursor();
+        if (radiaCursor) {
+            handled = true;
+            hoverHandled = true;
+        }
     }
 
     LLUICtrl* top_ctrl = gFocusMgr.getTopCtrl();
@@ -4346,6 +4355,8 @@ void LLViewerWindow::updateUI()
     {
         LLSelectMgr::getInstance()->deselectUnused();
     }
+
+    if (radiaCursor) mWindow->setCursor(translateCursor(*radiaCursor));
 }
 
 

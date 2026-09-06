@@ -921,6 +921,35 @@ TEST(SurfaceTest, ScrollbarArrowsAndTrackPageByInputPolicy) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), viewportPtr->clientHeight() - 40.f);
 }
 
+TEST(SurfaceTest, AppliesRuntimePointerPolicyToScrollbarInput) {
+    StyleSheet styleSheet;
+    ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: default; }").ok());
+    Surface surface(styleSheet);
+    surface.setViewport(200.f, 200.f);
+
+    auto viewport = makeElement<HTMLPanelElement>();
+    viewport->setId("viewport").setRect({0.f, 0.f, 100.f, 100.f}).setPointerEvents(false);
+    auto content = makeElement<HTMLPanelElement>();
+    content->setRect({0.f, 0.f, 100.f, 300.f});
+    viewport->append(std::move(content));
+    HTMLPanelElement* viewportPtr = viewport.get();
+    surface.mount(std::move(viewport));
+    surface.updateLayout();
+
+    RecordingPaintContext recording;
+    surface.paint(recording);
+    const PaintCommand* command = recording.last(PaintCommandKind::Scrollbar);
+    ASSERT_NE(command, nullptr);
+    ASSERT_TRUE(command->scrollbar.has_value());
+    const Rect thumb = command->scrollbar->geometry.vertical.thumb;
+    const Vec2 point{thumb.x + thumb.w * .5f, thumb.y + thumb.h * .5f};
+
+    EXPECT_FALSE(surface.pointerMove({point}));
+    EXPECT_FALSE(surface.pointerDown({point, PointerButton::Left}));
+    EXPECT_FALSE(surface.hasPointerCapture());
+    EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 0.f);
+}
+
 TEST(SurfaceTest, HeldScrollbarArrowRepeatsUntilRelease) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: auto; }").ok());

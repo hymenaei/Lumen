@@ -43,7 +43,6 @@ using radia::ui::WheelEvent;
 
 struct InputDispatchResult {
     bool handled = false;
-    std::optional<CursorStyle> cursor;
 };
 
 class DocumentController;
@@ -96,6 +95,7 @@ public:
     void frame(S32 width, S32 height, F32 paintScale = 1.f, F32 paintOriginX = 0.f, F32 paintOriginY = 0.f);
     void idle();
     bool hasPointerCapture() const;
+    std::optional<CursorStyle> pointerCursor();
     InputDispatchResult pointerMove(const PointerEvent& event);
     InputDispatchResult pointerDown(const PointerEvent& event);
     InputDispatchResult pointerUp(const PointerEvent& event);

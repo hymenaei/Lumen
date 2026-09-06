@@ -107,7 +107,7 @@ public:
     static MountEpoch& mountEpoch(Element& element) { return element.mPrivate->mountEpoch; }
     static const MountEpoch& mountEpoch(const Element& element) { return element.mPrivate->mountEpoch; }
     static std::uint64_t topologyEpoch(const Element& element) { return element.mChildTopologyRevision; }
-    static bool isMounted(const Element& element) { return element.mSurface != nullptr; }
+    static bool isMounted(const Element& element) { return element.surface() != nullptr; }
     static ElementLayoutCache& layoutCache(Element& element) { return element.mPrivate->layoutCache; }
     static const ElementLayoutCache& layoutCache(const Element& element) { return element.mPrivate->layoutCache; }
     static const Rect& scrollableOverflow(const Element& element) { return element.mScrollableOverflow; }
@@ -304,7 +304,7 @@ public:
 
     ElementVisit() = default;
     explicit ElementVisit(ElementT& element)
-        : lifetime(&element), parentLifetime(element.parentElement()), surface(element.mSurface), parentNode(element.parentNode()),
+        : lifetime(&element), parentLifetime(element.parentElement()), surface(element.surface()), parentNode(element.parentNode()),
           parent(element.parentElement()), layoutRevision(element.mLayoutInvalidationRevision), childTopologyRevision(element.mChildTopologyRevision),
           parentChildTopologyRevision(parent ? parent->mChildTopologyRevision : 0), styleRevision(element.mStyleRevision),
           mountEpoch(ElementInternalAccess::mountEpoch(element)) {}
@@ -313,7 +313,7 @@ public:
     bool objectAlive() const { return get() != nullptr; }
     bool mountValid() const {
         const ElementT* element = get();
-        return element && element->mSurface == surface && ElementInternalAccess::mountEpoch(*element) == mountEpoch;
+        return element && element->surface() == surface && ElementInternalAccess::mountEpoch(*element) == mountEpoch;
     }
     bool topologyValid() const {
         const ElementT* element = get();
