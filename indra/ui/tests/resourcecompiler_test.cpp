@@ -94,7 +94,7 @@ protected:
 };
 } // namespace
 
-TEST(ResourceIdTest, CanonicalizesLogicalPathsWithoutSkinPrefixes) {
+TEST(ResourceIdTest, CanonicalizesLogicalPaths) {
     const ResourceId path("./views\\panel/../foo.html");
     EXPECT_TRUE(path.valid());
     EXPECT_EQ(path.value(), "views/foo.html");
@@ -109,7 +109,7 @@ TEST(ResourceIdTest, CanonicalizesLogicalPathsWithoutSkinPrefixes) {
     EXPECT_FALSE(ResourceId::resolve(ResourceId("outer.html"), "../outside.html").valid());
 }
 
-TEST(ResourceIdTest, KeepsLogicalLookupSeparateFromPhysicalProvenance) {
+TEST(ResourceIdTest, PreservesPathProvenance) {
     ResourceSnapshot snapshot;
     snapshot.add(ResourceId("foo.html"), "<panel></panel>", "skin.views/foo.html");
 
@@ -136,7 +136,7 @@ TEST(ResourceSnapshotTest, EqualityIncludesPrefixAliases) {
     EXPECT_NE(baseline, candidate);
 }
 
-TEST_F(ResourceCompilerTest, ConsumesCanonicalLogicalIdsWithoutProviderTranslation) {
+TEST_F(ResourceCompilerTest, UsesCanonicalLogicalIds) {
     ResourceSnapshot snapshot;
     ASSERT_TRUE(snapshot.add("root.html", "<panel></panel>"));
     ASSERT_TRUE(snapshot.addPrefixAlias("views"));
@@ -148,7 +148,7 @@ TEST_F(ResourceCompilerTest, ConsumesCanonicalLogicalIdsWithoutProviderTranslati
     EXPECT_EQ(physicalRoot.errors.front().source, "views/root.html");
 }
 
-TEST_F(ResourceCompilerTest, ResolvesResourceReferencesThroughProvider) {
+TEST_F(ResourceCompilerTest, ResolvesResourceReferences) {
     ResourceSnapshot snapshot;
     ASSERT_TRUE(snapshot.add("root.html", "<panel><panel filename=\"views/child.html\"></panel></panel>"));
     ASSERT_TRUE(snapshot.add("child.html", "<panel id=\"child\"></panel>"));
@@ -161,7 +161,7 @@ TEST_F(ResourceCompilerTest, ResolvesResourceReferencesThroughProvider) {
     EXPECT_EQ(result.document->documentElement()->children().front()->id(), "child");
 }
 
-TEST_F(ResourceCompilerTest, BuildsFloaterWithControlsAndAuthoredEventCalls) {
+TEST_F(ResourceCompilerTest, BuildsFloaterEvents) {
     resources["elements/minimize.html"] = "<minimize><icon src=\"minimize\"></icon></minimize>";
     resources["elements/close.html"] = "<close><icon src=\"close\"></icon></close>";
     constexpr char kFloaterLayout[] = "<floater resizeable><head><title>title</title><minimize></minimize><close></close></head><body>"
@@ -224,7 +224,7 @@ TEST_F(ResourceCompilerTest, BuildsStructuralDivs) {
     EXPECT_EQ(group->children().front()->id(), "child");
 }
 
-TEST_F(ResourceCompilerTest, RefreshesCachedDocumentWhenResourceChanges) {
+TEST_F(ResourceCompilerTest, RefreshesDocumentOnResourceChange) {
     ResourceSnapshot resources;
     resources.add("panel.html", "<panel><p id=\"first\"></p></panel>");
     ResourceCompiler compiler(&resources);
@@ -245,7 +245,7 @@ TEST_F(ResourceCompilerTest, RefreshesCachedDocumentWhenResourceChanges) {
     EXPECT_EQ(secondPanel->children().front()->id(), "second");
 }
 
-TEST_F(ResourceCompilerTest, RefreshesCachedDiagnosticsWhenProvenanceChanges) {
+TEST_F(ResourceCompilerTest, RefreshesDiagnostics) {
     ResourceSnapshot resources;
     resources.add(ResourceId("panel.html"), "<panel><unknown></unknown></panel>", "base/views/panel.html");
     ResourceCompiler compiler(&resources);
@@ -262,7 +262,7 @@ TEST_F(ResourceCompilerTest, RefreshesCachedDiagnosticsWhenProvenanceChanges) {
     EXPECT_EQ(second.errors.front().source, "derived/html/panel.html");
 }
 
-TEST_F(ResourceCompilerTest, InstantiatesIndependentEmbeddedResourcePanels) {
+TEST_F(ResourceCompilerTest, InstantiatesEmbeddedPanels) {
     constexpr char kSharedResourceLayout[] = "<panel id=\"base\" class=\"shared\"><p id=\"resourceChild\">base</p></panel>";
     constexpr char kEmbeddedPanelsLayout[] = "<panel><panel filename=\"shared.html\" id=\"one\" class=\"first\">"
                                              "<p id=\"inlineChild\"></p></panel>"
@@ -303,7 +303,7 @@ TEST_F(ResourceCompilerTest, ResolvesNestedResourceReferences) {
     EXPECT_EQ(result.document->documentElement()->children()[0]->children()[0]->id(), "inner");
 }
 
-TEST_F(ResourceCompilerTest, ResolvesRootedLayoutResourceReferences) {
+TEST_F(ResourceCompilerTest, ResolvesRootedLayout) {
     resources["shared.html"] = "<panel id=\"shared\"></panel>";
 
     const ResourceBuildResult result =
@@ -374,7 +374,7 @@ TEST_F(ResourceCompilerTest, PreservesCompilerSourceLocations) {
     EXPECT_EQ(result.errors.front().column, 3U);
 }
 
-TEST_F(ResourceCompilerTest, PreservesMixedContentOrderAndSourceRanges) {
+TEST_F(ResourceCompilerTest, PreservesSourceOrder) {
     constexpr char kMixedContentLayout[] = "<panel>before"
                                            "<label>middle</label>"
                                            "after</panel>";
@@ -389,7 +389,7 @@ TEST_F(ResourceCompilerTest, PreservesMixedContentOrderAndSourceRanges) {
     EXPECT_GT(parsed.document->root->content[1].source.end.offset, parsed.document->root->content[1].source.begin.offset);
 }
 
-TEST_F(ResourceCompilerTest, BuildsMixedTextAndElementsAsOneOrderedRuntimeTree) {
+TEST_F(ResourceCompilerTest, BuildsOrderedTree) {
     constexpr char kMixedContentLayout[] = "<p>Hello <b>world</b><br>Again</p>";
     const ResourceBuildResult result = factory.buildElementTreeFromString(kMixedContentLayout, "mixed-runtime.html");
     ASSERT_TRUE(result.ok());
@@ -422,14 +422,14 @@ TEST_F(ResourceCompilerTest, PreservesWhitespaceInTextNodes) {
     EXPECT_EQ(result.document->documentElement()->textContent(), "  before   after  ");
 }
 
-TEST_F(ResourceCompilerTest, IgnoresFormattingWhitespaceWhenValidatingFlowBreaks) {
+TEST_F(ResourceCompilerTest, IgnoresFormattingWhitespace) {
     const ResourceBuildResult result = factory.buildElementTreeFromString("<p>\n  <br>\n  after\n</p>", "flow-break-whitespace.html");
     ASSERT_FALSE(result.ok());
     ASSERT_FALSE(result.errors.empty());
     EXPECT_EQ(result.errors.front().code, "layout.flow_break.leading");
 }
 
-TEST_F(ResourceCompilerTest, ParsesCanonicalTagsAndRejectsUnknownTags) {
+TEST_F(ResourceCompilerTest, RejectsUnknownTags) {
     const SourceDocumentParseResult known = SourceDocumentParser().parse("<PaNeL><BuTtOn></BuTtOn><P></P></PaNeL>", "tags.html");
     ASSERT_TRUE(known.ok());
     ASSERT_NE(known.document, nullptr);
@@ -447,7 +447,7 @@ TEST_F(ResourceCompilerTest, ParsesCanonicalTagsAndRejectsUnknownTags) {
     EXPECT_EQ(unknown.errors.front().column, 3U);
 }
 
-TEST_F(ResourceCompilerTest, RejectsSelfClosingSyntaxOnNormalElements) {
+TEST_F(ResourceCompilerTest, RejectsSelfClosingElements) {
     const SourceDocumentParseResult parsed = SourceDocumentParser().parse("<panel/>", "self-closing.html");
 
     ASSERT_FALSE(parsed.ok());
@@ -455,7 +455,7 @@ TEST_F(ResourceCompilerTest, RejectsSelfClosingSyntaxOnNormalElements) {
     EXPECT_EQ(parsed.errors.front().code, "layout.html.invalid");
 }
 
-TEST_F(ResourceCompilerTest, KeepsSlashInUnquotedAttributeValues) {
+TEST_F(ResourceCompilerTest, KeepsSlashInUnquotedValue) {
     const SourceDocumentParseResult parsed = SourceDocumentParser().parse("<input name=mode/>", "unquoted-slash.html");
 
     ASSERT_TRUE(parsed.ok());
@@ -511,7 +511,7 @@ TEST_F(ResourceCompilerTest, ComposesButtonInlineChildren) {
     EXPECT_EQ(rebuiltIcon->name(), "rebuilt");
 }
 
-TEST_F(ResourceCompilerTest, RefreshesLocalizedElementsAcrossLocaleChanges) {
+TEST_F(ResourceCompilerTest, RefreshesLocalizedElements) {
     System system;
     ResourceSnapshot resources;
     constexpr char kLocalizationYaml[] = "defaultLocale: en\n"
@@ -593,7 +593,7 @@ TEST_F(ResourceCompilerTest, RefreshesLocalizedElementsAcrossLocaleChanges) {
     EXPECT_EQ(missing.errors.front().code, "layout.localization.missing");
 }
 
-TEST_F(ResourceCompilerTest, RefreshesLocalizedRichTextAcrossLocaleChanges) {
+TEST_F(ResourceCompilerTest, RefreshesLocalizedText) {
     System system;
     ResourceSnapshot resources;
     constexpr char kLocalizationYaml[] = "defaultLocale: en\n"
@@ -640,7 +640,7 @@ TEST_F(ResourceCompilerTest, RefreshesLocalizedRichTextAcrossLocaleChanges) {
     assertRuntime("Olá ", "i", "itálico", "Novamente");
 }
 
-TEST_F(ResourceCompilerTest, RejectsUnknownElementsAndAttributes) {
+TEST_F(ResourceCompilerTest, RejectsUnknownMarkup) {
     constexpr char kUnknownElementLayout[] = "<panel>"
                                              "<unknown></unknown></panel>";
     constexpr char kUnsupportedAttributeLayout[] = "<panel width=\"10\"></panel>";
@@ -665,7 +665,7 @@ TEST_F(ResourceCompilerTest, RejectsUnknownElementsAndAttributes) {
     EXPECT_EQ(unknownAttribute.errors.front().code, "layout.attribute.unknown");
 }
 
-TEST_F(ResourceCompilerTest, AcceptsEventsOnEveryElementAndWarnsForExpressions) {
+TEST_F(ResourceCompilerTest, ValidatesElementEvents) {
     constexpr char kUniversalEventLayout[] = "<p onClick=\"click()\">copy</p>";
     constexpr char kExpressionCallLayout[] = "<button onClick=\"save(force=true)\"></button>";
     const ResourceBuildResult universalEvent = factory.buildElementTreeFromString(kUniversalEventLayout, "event.html");
@@ -682,7 +682,7 @@ TEST_F(ResourceCompilerTest, AcceptsEventsOnEveryElementAndWarnsForExpressions) 
     EXPECT_EQ(expressionCall.warnings.front().code, "layout.event.literal_unsupported");
 }
 
-TEST_F(ResourceCompilerTest, AcceptsDuplicateElementIdsAndUsesTreeOrder) {
+TEST_F(ResourceCompilerTest, UsesTreeOrderForDuplicateIds) {
     constexpr char kDuplicateIdLayout[] = "<panel><p id=\"same\"></p>"
                                           "<button id=\"same\">Same</button></panel>";
     const ResourceBuildResult result = factory.buildElementTreeFromString(kDuplicateIdLayout, "duplicates.html");
@@ -713,7 +713,7 @@ TEST_F(ResourceCompilerTest, RejectsInvalidBooleanAttributes) {
     EXPECT_EQ(result.errors[1].column, 52U);
 }
 
-TEST_F(ResourceCompilerTest, AcceptsBooleanAttributesWithoutValue) {
+TEST_F(ResourceCompilerTest, AcceptsBooleanAttributes) {
     const ResourceBuildResult result = factory.buildElementTreeFromString("<button disabled>Save</button>", "boolean.html");
     ASSERT_TRUE(result.ok());
     ASSERT_TRUE(result.document);
@@ -740,7 +740,7 @@ TEST_F(ResourceCompilerTest, ParsesRadiaHTMLSyntaxDirectly) {
     EXPECT_EQ(parsed.document->root->attributes.at("data-kind").value, "demo");
 }
 
-TEST_F(ResourceCompilerTest, DecodesHTMLEntitiesWithoutRewritingHTML) {
+TEST_F(ResourceCompilerTest, DecodesEntities) {
     constexpr char kHTML[] = "<p title=\"a&amp;b\">&lt; &quot; &apos;</p>";
     const SourceDocumentParseResult parsed = SourceDocumentParser().parse(kHTML, "entities.html");
     ASSERT_TRUE(parsed.ok());
@@ -757,7 +757,7 @@ TEST_F(ResourceCompilerTest, RejectsMismatchedHTMLTags) {
     EXPECT_EQ(parsed.errors.front().code, "layout.html.invalid");
 }
 
-TEST_F(ResourceCompilerTest, ManagesAuthoredFloaterHeadLifecycle) {
+TEST_F(ResourceCompilerTest, ManagesFloaterHead) {
     constexpr char kFloaterLayout[] = "<floater><head><title><icon src=\"search\"></icon>tools</title>"
                                       "<minimize><icon src=\"minimize\"></icon></minimize><close><icon src=\"close\"></icon></close></head>"
                                       "<body><panel id=\"content\"><button id=\"refresh\">Refresh</button></panel></body></floater>";
@@ -798,7 +798,7 @@ TEST_F(ResourceCompilerTest, ManagesAuthoredFloaterHeadLifecycle) {
     EXPECT_EQ(refresh.get(), nullptr);
 }
 
-TEST_F(ResourceCompilerTest, FindsFloaterControlsThroughHeadWrappers) {
+TEST_F(ResourceCompilerTest, FindsFloaterControls) {
     constexpr char kFloaterLayout[] =
         "<floater><head><title>tools</title><div><minimize></minimize><close></close></div></head><body></body></floater>";
     ResourceBuildResult result = factory.buildElementTreeFromString(kFloaterLayout, "nested_floater_controls.html");
@@ -977,7 +977,7 @@ TEST_F(ResourceCompilerTest, ValidatesElementDefaultDiagnostics) {
     EXPECT_EQ(elementAttribute.errors.front().code, "layout.attribute.boolean_invalid");
 }
 
-TEST_F(ResourceCompilerTest, PreservesPhysicalProvenanceForElementDefaultDiagnostics) {
+TEST_F(ResourceCompilerTest, PreservesDiagnosticProvenance) {
     ResourceSnapshot snapshot;
     ASSERT_TRUE(snapshot.add("elements/label.html", "<label visibility=\"sometimes\"></label>", "skins/views/elements/label.html"));
 
@@ -1003,7 +1003,7 @@ TEST_F(ResourceCompilerTest, AcceptsCaseInsensitiveHTMLNames) {
     EXPECT_EQ(authoredEventCall(*button, kClickEvent)->name(), "saveFile");
 }
 
-TEST_F(ResourceCompilerTest, RejectsMalformedHTMLAttributesAndCaseFoldedConflicts) {
+TEST_F(ResourceCompilerTest, RejectsMalformedAttributes) {
     struct InvalidHTMLCase {
         const char* name;
         const char* html;
@@ -1038,7 +1038,7 @@ TEST_F(ResourceCompilerTest, RejectsMalformedHTMLAttributesAndCaseFoldedConflict
     EXPECT_EQ(invalidHandler.warnings.front().code, "layout.event.name_invalid");
 }
 
-TEST_F(ResourceCompilerTest, PreservesValidAuthoredEventCallsAndWarnsForInvalidCalls) {
+TEST_F(ResourceCompilerTest, ValidatesAuthoredEvents) {
     constexpr char kAuthoredEventCallsLayout[] = "<panel><button id=\"inspect\" "
                                                  "onClick=\"inspect(4, 'settings', true, this, event)\"></button>"
                                                  "<button id=\"bare\" onClick=\"press\"></button>"

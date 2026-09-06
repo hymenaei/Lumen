@@ -22,7 +22,7 @@ using radia::ui::detail::resizeEdgesAt;
 using ::testing::Message;
 } // namespace
 
-TEST(FloaterResizeTest, ClassifiesEdgesCornersAndNonResizablePoints) {
+TEST(FloaterResizeTest, ClassifiesResizeEdges) {
     const Rect bounds{20.f, 30.f, 100.f, 80.f};
     struct RegionCase {
         const char* name;
@@ -48,7 +48,7 @@ TEST(FloaterResizeTest, ClassifiesEdgesCornersAndNonResizablePoints) {
     }
 }
 
-TEST(FloaterResizeTest, KeepsOppositeEdgeFixedAndHonorsMinimumWidth) {
+TEST(FloaterResizeTest, RespectsResizeConstraints) {
     const Rect initial{20.f, 30.f, 100.f, 80.f};
     const FloaterResizeConstraints constraints{{40.f, 35.f}, Rect{0.f, 0.f, 200.f, 160.f}};
 
@@ -96,7 +96,7 @@ TEST(FloaterResizeTest, MapsResizeEdgesToCursorStyles) {
     }
 }
 
-TEST(FloaterResizeTest, PreservesUserResizeOnlyForEquivalentResizableGeometry) {
+TEST(FloaterResizeTest, PreservesEquivalentResize) {
     const FloaterAuthoredGeometry current{{300.f, 240.f}, {280.f, 200.f}};
     struct ReloadCase {
         const char* name;

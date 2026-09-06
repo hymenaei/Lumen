@@ -284,7 +284,7 @@ TEST(SurfaceTest, RecordsExplicitPaintTarget) {
     EXPECT_EQ(frame->target.clipAA, AAIntent::Coverage);
 }
 
-TEST(SurfaceTest, SizesBodyDocumentRootToViewportInsideItsMargin) {
+TEST(SurfaceTest, SizesBodyToViewport) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia(":root { display: block; margin: 8px; background-color: #ff0000; }").ok());
 
@@ -302,7 +302,7 @@ TEST(SurfaceTest, SizesBodyDocumentRootToViewportInsideItsMargin) {
     EXPECT_FLOAT_EQ(bodyPtr->rect().h, 64.f);
 }
 
-TEST(SurfaceTest, PaintsBodyDocumentRootBackgroundAcrossViewport) {
+TEST(SurfaceTest, PaintsBodyBackground) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia(":root { display: block; margin: 8px; background-color: #ff0000; }").ok());
 
@@ -328,7 +328,7 @@ TEST(SurfaceTest, PaintsBodyDocumentRootBackgroundAcrossViewport) {
     ASSERT_NE(command, recording.commands().end());
 }
 
-TEST(SurfaceTest, HandlesPointerHoverPressAndRelease) {
+TEST(SurfaceTest, HandlesPointerStates) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto button = makeElement<HTMLButtonElement>();
@@ -356,7 +356,7 @@ TEST(SurfaceTest, HandlesPointerHoverPressAndRelease) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(SurfaceTest, ActivatesSwitchWithMouseAndKeyboard) {
+TEST(SurfaceTest, ActivatesSwitch) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto control = makeElement<HTMLInputElement>();
@@ -396,7 +396,7 @@ TEST(SurfaceTest, ClearsInteractionAfterTreeMutation) {
     EXPECT_FALSE(context.pointerMove({{15.f, 15.f}}));
 }
 
-TEST(SurfaceTest, BlocksDisabledControlsWithoutFocusingThem) {
+TEST(SurfaceTest, BlocksDisabledControls) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto button = makeElement<HTMLButtonElement>();
@@ -406,7 +406,7 @@ TEST(SurfaceTest, BlocksDisabledControlsWithoutFocusingThem) {
     EXPECT_FALSE(context.hasFocus());
 }
 
-TEST(SurfaceTest, DragsMinimizesAndRestoresFloaters) {
+TEST(SurfaceTest, DragsFloater) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia(kFloaterInteractionLayout).ok());
     Surface context(styleSheet);
@@ -474,7 +474,7 @@ TEST(SurfaceTest, IgnoresNonPrimaryPointerButtons) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(SurfaceTest, RoutesDoubleClickTextAndScrollInput) {
+TEST(SurfaceTest, RoutesDoubleClickScroll) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto probe = std::make_unique<InputProbe>();
@@ -547,7 +547,7 @@ TEST(SurfaceTest, PreventsDefaultWheelAction) {
     EXPECT_EQ(target->lastScrollY, 0.f);
 }
 
-TEST(SurfaceTest, HitTestsScrolledChildAtPaintedLocation) {
+TEST(SurfaceTest, HitTestsPaintedChild) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: none; } "
@@ -573,7 +573,7 @@ TEST(SurfaceTest, HitTestsScrolledChildAtPaintedLocation) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(SurfaceTest, HitTestsVerticallyScrolledChildAtPaintedLocation) {
+TEST(SurfaceTest, HitTestsScrolledChild) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: none; } "
@@ -638,7 +638,7 @@ TEST(SurfaceTest, ScrollsScrollableElementWithWheel) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 25.f);
 }
 
-TEST(SurfaceTest, ShiftWheelScrollsHorizontallyAndPreservesWheelPayload) {
+TEST(SurfaceTest, ScrollsHorizontallyWithShift) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -668,7 +668,7 @@ TEST(SurfaceTest, ShiftWheelScrollsHorizontallyAndPreservesWheelPayload) {
     EXPECT_FLOAT_EQ(observedDeltaY, 25.f);
 }
 
-TEST(SurfaceTest, RecordsSemanticFallbackScrollbarRequest) {
+TEST(SurfaceTest, RecordsScrollbarFallback) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; "
@@ -705,7 +705,7 @@ TEST(SurfaceTest, RecordsSemanticFallbackScrollbarRequest) {
     EXPECT_NEAR(request.colors.track.b, 0x66 / 255.f, 1.0e-6f);
 }
 
-TEST(SurfaceTest, ScrollbarThumbCapturesPointerAndReachesBothEndpoints) {
+TEST(SurfaceTest, DragsScrollbarThumb) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -753,7 +753,7 @@ TEST(SurfaceTest, ScrollbarThumbCapturesPointerAndReachesBothEndpoints) {
     EXPECT_TRUE(surface.pointerUp({{center(thumbAtEnd).x, verticalBounds.top()}, PointerButton::Left}));
 }
 
-TEST(SurfaceTest, RtlScrollbarHitTestingAndHorizontalTrackClicks) {
+TEST(SurfaceTest, HitsRtlScrollbar) {
     constexpr char kLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {}}, ar: {strings: {}}}\n";
     ResourceSnapshot snapshot;
     snapshot.add("localization.yaml", kLocalization);
@@ -810,7 +810,7 @@ TEST(SurfaceTest, RtlScrollbarHitTestingAndHorizontalTrackClicks) {
     EXPECT_LT(afterClickCommand->scrollbar->geometry.horizontal.thumb.x, initialThumbX);
 }
 
-TEST(SurfaceTest, RtlHorizontalWheelReversesNormalizedScrollDirection) {
+TEST(SurfaceTest, ReversesRtlWheelDirection) {
     constexpr char kLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {}}, ar: {strings: {}}}\n";
     ResourceSnapshot snapshot;
     snapshot.add("localization.yaml", kLocalization);
@@ -854,7 +854,7 @@ TEST(SurfaceTest, RtlHorizontalWheelReversesNormalizedScrollDirection) {
     EXPECT_GT(afterWheelCommand->scrollbar->geometry.horizontal.thumb.x, initialThumbX);
 }
 
-TEST(SurfaceTest, RtlScrollTransformMirrorsHorizontalContentTranslation) {
+TEST(SurfaceTest, MirrorsRtlScrollTranslation) {
     constexpr char kLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {}}, ar: {strings: {}}}\n";
     ResourceSnapshot snapshot;
     snapshot.add("localization.yaml", kLocalization);
@@ -887,7 +887,7 @@ TEST(SurfaceTest, RtlScrollTransformMirrorsHorizontalContentTranslation) {
     EXPECT_FLOAT_EQ(translation->translation.y, 0.f);
 }
 
-TEST(SurfaceTest, ScrollbarArrowsAndTrackPageByInputPolicy) {
+TEST(SurfaceTest, PagesScrollbarByPolicy) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -921,7 +921,7 @@ TEST(SurfaceTest, ScrollbarArrowsAndTrackPageByInputPolicy) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), viewportPtr->clientHeight() - 40.f);
 }
 
-TEST(SurfaceTest, AppliesRuntimePointerPolicyToScrollbarInput) {
+TEST(SurfaceTest, AppliesScrollbarPointerPolicy) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: default; }").ok());
     Surface surface(styleSheet);
@@ -950,7 +950,7 @@ TEST(SurfaceTest, AppliesRuntimePointerPolicyToScrollbarInput) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 0.f);
 }
 
-TEST(SurfaceTest, HeldScrollbarArrowRepeatsUntilRelease) {
+TEST(SurfaceTest, RepeatsHeldScrollbarArrow) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -986,7 +986,7 @@ TEST(SurfaceTest, HeldScrollbarArrowRepeatsUntilRelease) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), afterRelease);
 }
 
-TEST(SurfaceTest, ScrollbarTrackClickContinuesIntoThumbDrag) {
+TEST(SurfaceTest, ContinuesTrackClickIntoDrag) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -1049,7 +1049,7 @@ TEST(SurfaceTest, KeepsDefaultCursorOverScrollbar) {
     EXPECT_EQ(surface.cursor(), CursorStyle::Default);
 }
 
-TEST(SurfaceTest, ReportsPartSpecificScrollbarHoverAndPressedState) {
+TEST(SurfaceTest, ReportsScrollbarPartState) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: scroll; scrollbar-mode: classic; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -1147,7 +1147,7 @@ TEST(SurfaceTest, ScrollsFocusedAncestorWithKeyboard) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 0.f);
 }
 
-TEST(SurfaceTest, ScrollsColumnContentDownAndMovesPaintedText) {
+TEST(SurfaceTest, ScrollsColumnText) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("#viewport { display: flex; flex-direction: column; overflow: auto; scrollbar-mode: overlay; pointer-events: auto; } "
@@ -1187,7 +1187,7 @@ TEST(SurfaceTest, ScrollsColumnContentDownAndMovesPaintedText) {
     EXPECT_FLOAT_EQ(scrolledText->rect.y, initialText->rect.y + 25.f);
 }
 
-TEST(SurfaceTest, PreventsDefaultWheelScrollingWhenCanceled) {
+TEST(SurfaceTest, StopsCanceledWheel) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: auto; }").ok());
     Surface surface(styleSheet);
@@ -1228,7 +1228,7 @@ TEST(SurfaceTest, DoesNotWheelScrollHiddenOverflow) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 25.f);
 }
 
-TEST(SurfaceTest, ChainsWheelDeltaFromInnerToOuterScroller) {
+TEST(SurfaceTest, ChainsWheelDelta) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("#outer { display: block; overflow: auto; scrollbar-mode: overlay; pointer-events: auto; } "
@@ -1258,7 +1258,7 @@ TEST(SurfaceTest, ChainsWheelDeltaFromInnerToOuterScroller) {
     EXPECT_FLOAT_EQ(outerPtr->scrollTop(), 15.f);
 }
 
-TEST(SurfaceTest, DispatchesCoalescedTargetOnlyScrollNotification) {
+TEST(SurfaceTest, CoalescesScrollNotification) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("#viewport { display: block; overflow: auto; scrollbar-mode: overlay; }").ok());
     Surface surface(styleSheet);
@@ -1297,7 +1297,7 @@ TEST(SurfaceTest, DispatchesCoalescedTargetOnlyScrollNotification) {
     EXPECT_FLOAT_EQ(viewportPtr->scrollTop(), 20.f);
 }
 
-TEST(SurfaceTest, ReleasesPointerCaptureWhenInteractionStateClears) {
+TEST(SurfaceTest, ReleasesCaptureOnClear) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia(kFloaterInteractionLayout).ok());
     Surface context(styleSheet);
@@ -1318,7 +1318,7 @@ TEST(SurfaceTest, ReleasesPointerCaptureWhenInteractionStateClears) {
     EXPECT_FALSE(context.hasPointerCapture());
 }
 
-TEST(SurfaceTest, TraversesFocusableControlsAndSkipsUnavailableNodes) {
+TEST(SurfaceTest, TraversesFocusableControls) {
     Surface context;
     context.setViewport(200.f, 200.f);
 
@@ -1376,7 +1376,7 @@ TEST(SurfaceTest, TraversesFocusableControlsAndSkipsUnavailableNodes) {
     EXPECT_FALSE(firstTarget->hasState(ElementState::FocusVisible));
 }
 
-TEST(SurfaceTest, ClearsInteractionWhenDescendantsBecomeUnavailable) {
+TEST(SurfaceTest, ClearsInteractionOnRemoval) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto panel = makeElement<HTMLPanelElement>();
@@ -1415,7 +1415,7 @@ TEST(SurfaceTest, ClearsInteractionWhenDescendantsBecomeUnavailable) {
     EXPECT_FALSE(context.hasFocus());
 }
 
-TEST(SurfaceTest, DispatchesMouseBindingsInExpectedOrder) {
+TEST(SurfaceTest, OrdersMouseBindings) {
     Surface context;
     context.setViewport(100.f, 100.f);
     auto button = makeElement<HTMLButtonElement>();
@@ -1477,7 +1477,7 @@ TEST(SurfaceTest, DispatchesMouseBindingsInExpectedOrder) {
     EXPECT_EQ(events[11], "double");
 }
 
-TEST(SurfaceTest, KeepsOwnedBindingScopedToUnmountAndRemount) {
+TEST(SurfaceTest, ScopesOwnedBindingToMount) {
     Surface surface;
     auto root = makeElement<HTMLPanelElement>();
     HTMLPanelElement* rootPointer = root.get();
@@ -1519,7 +1519,7 @@ TEST(SurfaceTest, KeepsOwnedBindingScopedToUnmountAndRemount) {
     EXPECT_EQ(activations, 3);
 }
 
-TEST(SurfaceTest, KeepsBorrowedBindingScopedToUnmountAndRemount) {
+TEST(SurfaceTest, ScopesBorrowedBindingToMount) {
     Surface surface;
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
@@ -1563,7 +1563,7 @@ TEST(SurfaceTest, UnmountsRootElementsSafely) {
     EXPECT_FALSE(context.pointerDown({{10.f, 10.f}, PointerButton::Left}));
 }
 
-TEST(SurfaceTest, RemovesBorrowedRootBeforeItsOwnerDestroysIt) {
+TEST(SurfaceTest, RemovesBorrowedRootFirst) {
     Surface surface;
     surface.setViewport(100.f, 80.f);
     auto owner = std::make_unique<CaptureProbe>();
@@ -1586,7 +1586,7 @@ TEST(SurfaceTest, RemovesBorrowedRootBeforeItsOwnerDestroysIt) {
     EXPECT_FALSE(surface.pointerMove({{10.f, 10.f}}));
 }
 
-TEST(SurfaceTest, ClearsPointerCaptureWhenElementBecomesDisabled) {
+TEST(SurfaceTest, ClearsCaptureWhenDisabled) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto probe = std::make_unique<CaptureProbe>();
@@ -1601,7 +1601,7 @@ TEST(SurfaceTest, ClearsPointerCaptureWhenElementBecomesDisabled) {
     EXPECT_EQ(target->ends, 1);
 }
 
-TEST(SurfaceTest, AppliesPointerPolicyStylesWithoutLayout) {
+TEST(SurfaceTest, AppliesPointerPolicyStyles) {
     StyleSheet styleSheet;
     constexpr char kPointerPolicyStyles[] = "button { pointer-events: none; } "
                                             "panel { pointer-events: auto; }";
@@ -1620,7 +1620,7 @@ TEST(SurfaceTest, AppliesPointerPolicyStylesWithoutLayout) {
     EXPECT_TRUE(surface.pointerDown({{45.f, 15.f}, PointerButton::Left}));
 }
 
-TEST(SurfaceTest, RemeasuresAfterIntrinsicContentChanges) {
+TEST(SurfaceTest, RemeasuresAfterContentChange) {
     StyleSheet styleSheet;
     constexpr char kRowLayout[] = "panel { display: flex; flex-direction: row; } "
                                   "label { height: 10px; }";
@@ -1666,7 +1666,7 @@ TEST(SurfaceTest, RemeasuresAfterTextNodeDataChanges) {
     EXPECT_GT(labelElement->rect().w, shortWidth);
 }
 
-TEST(SurfaceTest, InvalidatesLayoutAfterStylesheetGenerationChanges) {
+TEST(SurfaceTest, InvalidatesLayoutOnStylesheet) {
     StyleSheet styleSheet;
     constexpr char kInitialLabelLayout[] = "label { width: 10px; height: 10px; }";
     constexpr char kExpandedLabelLayout[] = "label { width: 30px; height: 10px; }";
@@ -1688,7 +1688,7 @@ TEST(SurfaceTest, InvalidatesLayoutAfterStylesheetGenerationChanges) {
     EXPECT_EQ(text->rect().w, 30.f);
 }
 
-TEST(SurfaceTest, RoutesPointerEventsThroughCaptureTargetAndBubble) {
+TEST(SurfaceTest, RoutesCapturedPointerEvents) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     std::vector<std::string> log;
@@ -1707,7 +1707,7 @@ TEST(SurfaceTest, RoutesPointerEventsThroughCaptureTargetAndBubble) {
     EXPECT_EQ(log[2], std::string("parent:bubble"));
 }
 
-TEST(SurfaceTest, PreservesEventHandlerIdentityAndSuppressesDuplicates) {
+TEST(SurfaceTest, PreservesHandlerIdentity) {
     auto button = makeElementValue<HTMLButtonElement>();
     int calls = 0;
     EventHandler handler([&](Event& event) {
@@ -1725,7 +1725,7 @@ TEST(SurfaceTest, PreservesEventHandlerIdentityAndSuppressesDuplicates) {
     EXPECT_EQ(calls, 1);
 }
 
-TEST(SurfaceTest, EventListenerRemovalTakesEffectDuringTheCurrentDispatch) {
+TEST(SurfaceTest, RemovesListenerDuringDispatch) {
     auto button = makeElementValue<HTMLButtonElement>();
     int firstCalls = 0;
     int removedCalls = 0;
@@ -1743,7 +1743,7 @@ TEST(SurfaceTest, EventListenerRemovalTakesEffectDuringTheCurrentDispatch) {
     EXPECT_EQ(removedCalls, 0);
 }
 
-TEST(SurfaceTest, EventListenerAddedDuringDispatchWaitsForTheNextDispatch) {
+TEST(SurfaceTest, DefersAddedListener) {
     auto button = makeElementValue<HTMLButtonElement>();
     int addedCalls = 0;
     EventHandler added([&](Event&) { ++addedCalls; });
@@ -1756,7 +1756,7 @@ TEST(SurfaceTest, EventListenerAddedDuringDispatchWaitsForTheNextDispatch) {
     EXPECT_EQ(addedCalls, 1);
 }
 
-TEST(SurfaceTest, EventListenerCanRemoveItselfDuringDispatch) {
+TEST(SurfaceTest, SupportsListenerSelfRemoval) {
     auto button = makeElementValue<HTMLButtonElement>();
     int calls = 0;
     EventHandler self;
@@ -1772,7 +1772,7 @@ TEST(SurfaceTest, EventListenerCanRemoveItselfDuringDispatch) {
     EXPECT_EQ(calls, 1);
 }
 
-TEST(SurfaceTest, EventRoutingSnapshotsEachCurrentTargetInvocation) {
+TEST(SurfaceTest, SnapshotsEventTargets) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto parent = makeElement<HTMLPanelElement>();
@@ -1794,7 +1794,7 @@ TEST(SurfaceTest, EventRoutingSnapshotsEachCurrentTargetInvocation) {
     EXPECT_EQ(lateCalls, 2);
 }
 
-TEST(SurfaceTest, EventRoutingSkipsAListenerRemovedBeforeItsTurn) {
+TEST(SurfaceTest, SkipsRemovedListener) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto parent = makeElement<HTMLPanelElement>();
@@ -1811,7 +1811,7 @@ TEST(SurfaceTest, EventRoutingSkipsAListenerRemovedBeforeItsTurn) {
     EXPECT_TRUE(surface.pointerDown({{15.f, 15.f}, PointerButton::Left}));
 }
 
-TEST(SurfaceTest, EventRoutingIncludesListenersAddedByEarlierPathItems) {
+TEST(SurfaceTest, IncludesEarlierListeners) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto root = makeElement<HTMLPanelElement>();
@@ -1834,7 +1834,7 @@ TEST(SurfaceTest, EventRoutingIncludesListenersAddedByEarlierPathItems) {
     EXPECT_EQ(calls, 1);
 }
 
-TEST(SurfaceTest, EventRoutingUsesFixedPathForARetainedDetachedTarget) {
+TEST(SurfaceTest, RoutesDetachedTarget) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto root = makeElement<HTMLPanelElement>();
@@ -1862,7 +1862,7 @@ TEST(SurfaceTest, EventRoutingUsesFixedPathForARetainedDetachedTarget) {
     EXPECT_FALSE(ElementInternalAccess::isMounted(*target));
 }
 
-TEST(SurfaceTest, EventRoutingStopsSafelyWhenTheTargetIsDestroyed) {
+TEST(SurfaceTest, StopsOnTargetDestruction) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto root = makeElement<HTMLPanelElement>();
@@ -1886,7 +1886,7 @@ TEST(SurfaceTest, EventRoutingStopsSafelyWhenTheTargetIsDestroyed) {
     EXPECT_EQ(targetRef.get(), nullptr);
 }
 
-TEST(SurfaceTest, ScrollDispatchStopsSafelyWhenTheTargetIsDestroyed) {
+TEST(SurfaceTest, StopsScrollOnDestruction) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("panel { width: 100px; height: 100px; overflow: auto; }").ok());
     Surface surface(styleSheet);
@@ -1911,7 +1911,7 @@ TEST(SurfaceTest, ScrollDispatchStopsSafelyWhenTheTargetIsDestroyed) {
     EXPECT_EQ(rootRef.get(), nullptr);
 }
 
-TEST(SurfaceTest, StopImmediatePropagationSkipsLaterListeners) {
+TEST(SurfaceTest, StopsLaterListeners) {
     auto button = makeElementValue<HTMLButtonElement>();
     int skipped = 0;
     button.addEventListener(kClickEvent, [](Event& event) { event.stopImmediatePropagation(); });
@@ -1922,7 +1922,7 @@ TEST(SurfaceTest, StopImmediatePropagationSkipsLaterListeners) {
     EXPECT_EQ(skipped, 0);
 }
 
-TEST(SurfaceTest, HonorsPreventDefaultDuringPointerRouting) {
+TEST(SurfaceTest, HonorsPreventDefault) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     std::vector<std::string> log;
@@ -1937,7 +1937,7 @@ TEST(SurfaceTest, HonorsPreventDefaultDuringPointerRouting) {
     EXPECT_FALSE(surface.hasPointerCapture());
 }
 
-TEST(SurfaceTest, InheritsAndOverridesCursorStyles) {
+TEST(SurfaceTest, OverridesCursorStyles) {
     StyleSheet styleSheet;
     constexpr char kInheritedCursorLayout[] = "#parent { pointer-events: auto; cursor: grab; } "
                                               "#child { pointer-events: auto; }";
@@ -2036,7 +2036,7 @@ TEST(SurfaceTest, RaisesContainingFloaterOnPress) {
     EXPECT_EQ(secondActivations, 0);
 }
 
-TEST(SurfaceTest, AppliesOverflowVisibilityToHitTestingAndPainting) {
+TEST(SurfaceTest, AppliesOverflowVisibility) {
     StyleSheet stylesheet;
     constexpr char kOverflowVisibleLayout[] = "#parent { overflow: visible; pointer-events: none; } "
                                               "#child { pointer-events: auto; }";
@@ -2082,7 +2082,7 @@ TEST(SurfaceTest, AppliesOverflowVisibilityToHitTestingAndPainting) {
     EXPECT_TRUE(clipsAxis(overflowClip->clipAxes, ClipAxes::Y));
 }
 
-TEST(SurfaceTest, PaintsNestedScrollersWithBalancedViewportClipsAndTranslations) {
+TEST(SurfaceTest, PaintsNestedScrollers) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet
                     .loadRadia("#outer { display: block; overflow: auto; scrollbar-mode: overlay; scrollbar-width: none; } "
@@ -2147,7 +2147,7 @@ TEST(SurfaceTest, PaintsNestedScrollersWithBalancedViewportClipsAndTranslations)
     EXPECT_FLOAT_EQ(contentPtr->rect().h, contentLayoutRect.h);
 }
 
-TEST(SurfaceTest, TransfersMountedElementsBetweenSurfaces) {
+TEST(SurfaceTest, TransfersMountedElements) {
     Surface first;
     Surface second;
     first.setViewport(100.f, 100.f);
@@ -2204,7 +2204,7 @@ TEST(SurfaceTest, KeepsMountedRootsIndependent) {
     EXPECT_EQ(secondHandle.getMounted(), secondRoot);
 }
 
-TEST(SurfaceTest, HonorsVisibilityForPaintingHitTestingAndFocus) {
+TEST(SurfaceTest, HonorsVisibility) {
     Surface surface;
     surface.setViewport(100.f, 40.f);
     int visibleActivations = 0;
@@ -2243,7 +2243,7 @@ TEST(SurfaceTest, HonorsVisibilityForPaintingHitTestingAndFocus) {
     EXPECT_FALSE(collapsed->hasState(ElementState::Focused));
 }
 
-TEST(SurfaceTest, HonorsStylesheetDisplayAndVisibility) {
+TEST(SurfaceTest, HonorsVisibilityStyles) {
     StyleSheet styleSheet;
     constexpr char kVisibilityStyles[] = ".hidden { visibility: hidden; } .collapse { visibility: collapse; } .none { display: none; }";
     ASSERT_TRUE(styleSheet.loadRadia(kVisibilityStyles).ok());
@@ -2284,7 +2284,7 @@ TEST(SurfaceTest, HonorsStylesheetDisplayAndVisibility) {
     EXPECT_FALSE(none->hasState(ElementState::Focused));
 }
 
-TEST(SurfaceTest, InvalidatesAncestorLayoutAfterStateChanges) {
+TEST(SurfaceTest, InvalidatesAncestorLayout) {
     StyleSheet styleSheet;
     constexpr char kStateLayout[] = "panel { display: flex; flex-direction: row; } input { width: 20px; height: 10px; } "
                                     "input[switch]:checked { width: 40px; } label { width: 10px; height: 10px; }";
@@ -2309,7 +2309,7 @@ TEST(SurfaceTest, InvalidatesAncestorLayoutAfterStateChanges) {
     EXPECT_EQ(after->rect().left(), 40.f);
 }
 
-TEST(SurfaceTest, ReflowsInlineContentAfterTextAlignStateChange) {
+TEST(SurfaceTest, ReflowsAfterTextAlign) {
     StyleSheet styleSheet;
     constexpr char kTextAlignStyles[] = "panel { text-align: left; } panel:hover { text-align: center; } "
                                         ".inline { display: inline; width: 20px; height: 10px; }";
@@ -2336,7 +2336,7 @@ TEST(SurfaceTest, ReflowsInlineContentAfterTextAlignStateChange) {
     EXPECT_FLOAT_EQ(childTarget->rect().left(), 40.f);
 }
 
-TEST(SurfaceTest, PreservesOrderedPaintingHitTestingAndFocus) {
+TEST(SurfaceTest, PreservesPaintHitTestOrder) {
     StyleSheet styleSheet;
     constexpr char kOrderedOverlap[] = "panel { display: flex; flex-direction: row; width: 40px; height: 20px; } "
                                        "#early { order: -1; width: 20px; height: 20px; } "
@@ -2378,7 +2378,7 @@ TEST(SurfaceTest, PreservesOrderedPaintingHitTestingAndFocus) {
     EXPECT_EQ(paintOrder, expectedInitialPaintOrder);
 }
 
-TEST(SurfaceTest, InvalidatesCachedTraversalAfterChildMutation) {
+TEST(SurfaceTest, InvalidatesTraversalOnMutation) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto panel = makeElement<HTMLPanelElement>();

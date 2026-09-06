@@ -109,7 +109,7 @@ TEST(StyleCompilerTest, ResolvesStructuralDivStyles) {
     EXPECT_EQ(style.padding.top, 2.f);
 }
 
-TEST(StyleCompilerTest, ResolvesDisplayAndInheritedVisibility) {
+TEST(StyleCompilerTest, ResolvesVisibility) {
     constexpr char kDisplayStyles[] = "panel.flex { display: flex; flex-direction: column; } "
                                       "panel.inline { display: inline; } panel.inline-flex { display: inline-flex; } "
                                       "panel.none { display: none; } "
@@ -164,7 +164,7 @@ TEST(StyleCompilerTest, ParsesColorSchemeValues) {
     EXPECT_EQ(result.errors.front().code, "stylesheet.property.value_invalid");
 }
 
-TEST(StyleCompilerTest, ParsesBoxSizingValuesAndInitial) {
+TEST(StyleCompilerTest, ParsesBoxSizingValues) {
     constexpr char kBoxSizingStyles[] = "panel { box-sizing: border-box; } panel.content { box-sizing: content-box; } "
                                         "panel.reset { box-sizing: initial; }";
 
@@ -182,7 +182,7 @@ TEST(StyleCompilerTest, ParsesBoxSizingValuesAndInitial) {
     EXPECT_EQ(result.errors.front().code, "stylesheet.property.value_invalid");
 }
 
-TEST(StyleCompilerTest, ResolvesLightDarkColorChoicesForTheActiveScheme) {
+TEST(StyleCompilerTest, ResolvesSchemeColors) {
     constexpr char kLightDarkStyles[] =
         "panel { color-scheme: light; background-color: light-dark(#ffffff, #000000); color: light-dark(#101010, #f0f0f0); "
         "border: 1px solid light-dark(#cccccc, #333333); } panel.dark { color-scheme: dark; }";
@@ -207,7 +207,7 @@ TEST(StyleCompilerTest, ResolvesLightDarkColorChoicesForTheActiveScheme) {
     EXPECT_EQ(result.errors.front().code, "stylesheet.property.value_invalid");
 }
 
-TEST(StyleCompilerTest, ResolvesColorAndLengthTokens) {
+TEST(StyleCompilerTest, ResolvesStyleTokens) {
     constexpr char kTokenStyles[] = ":root { --accent: #204060ff; --space: 12px; } "
                                     "button { background-color: var(--accent); padding: var(--space); "
                                     "border-radius: 5px; }";
@@ -237,7 +237,7 @@ TEST(StyleCompilerTest, ResolvesPercentageBorderRadius) {
     EXPECT_FLOAT_EQ(style.borderRadius.topLeft.vertical.resolve(20.f), 20.f);
 }
 
-TEST(StyleCompilerTest, UsesLaterDeclarationsWithoutDiscardingShorthandValues) {
+TEST(StyleCompilerTest, PreservesShorthandValues) {
     constexpr char kDeclarationOrderStyles[] = "button { width: 10px; size: 20px 30px; width: 40px; }";
 
     StyleSheet stylesheet;
@@ -248,7 +248,7 @@ TEST(StyleCompilerTest, UsesLaterDeclarationsWithoutDiscardingShorthandValues) {
     EXPECT_EQ(style.height.pixels(), 20.f);
 }
 
-TEST(StyleCompilerTest, AppliesIdAndClassSpecificityBeforeElementRules) {
+TEST(StyleCompilerTest, AppliesSelectorSpecificity) {
     constexpr char kSpecificityStyles[] = "button.primary { width: 30px; } button { width: 10px; } "
                                           "#save { width: 50px; }";
 
@@ -260,7 +260,7 @@ TEST(StyleCompilerTest, AppliesIdAndClassSpecificityBeforeElementRules) {
     EXPECT_EQ(stylesheet.resolve("button", "", classes, 0).width.pixels(), 30.f);
 }
 
-TEST(StyleCompilerTest, ResolvesNestedStateAndChildSelectors) {
+TEST(StyleCompilerTest, ResolvesNestedSelectors) {
     constexpr char kNestedStyles[] = "button { background-color: #101010ff; &:hover { background-color: #202020ff; } "
                                      "> icon { size: 16px; } &:hover > icon { stroke-width: 3px; } }";
 
@@ -277,7 +277,7 @@ TEST(StyleCompilerTest, ResolvesNestedStateAndChildSelectors) {
     EXPECT_EQ(iconStyle.svgStrokeWidth->pixels, 3.f);
 }
 
-TEST(StyleCompilerTest, ParsesContainerAndTextAlignmentEnums) {
+TEST(StyleCompilerTest, ParsesAlignmentEnums) {
     constexpr char kAlignmentStyles[] = "panel { display: flex; flex-direction: row; vertical-align: middle; pointer-events: none; } "
                                         "label { text-align: right; pointer-events: auto; }";
 
@@ -294,7 +294,7 @@ TEST(StyleCompilerTest, ParsesContainerAndTextAlignmentEnums) {
     EXPECT_EQ(label.pointerEvents, PointerEvents::Auto);
 }
 
-TEST(StyleCompilerTest, ParsesLogicalTextAndCrossAxisAlignmentEnums) {
+TEST(StyleCompilerTest, ParsesLogicalAlignment) {
     constexpr char kCrossAxisStyles[] = "label { text-align: start; } panel { align-items: end; } "
                                         "panel.normal { align-items: normal; } button { align-self: start; } "
                                         "button.auto { align-self: auto; }";
@@ -324,7 +324,7 @@ TEST(StyleCompilerTest, ParsesGridSelfAlignment) {
     EXPECT_EQ(stylesheet.resolve("label", "", {"auto"}, 0).justifySelf, JustifySelf::Auto);
 }
 
-TEST(StyleCompilerTest, ParsesIndependentTypographyPropertiesAndVariableWeights) {
+TEST(StyleCompilerTest, ParsesTypographyProperties) {
     constexpr char kTypographyStyles[] = "label#a { font-family: sans; font-size: 19px; "
                                          "font-weight: bold; font-style: italic; }";
     constexpr char kVariableWeightStyles[] = "label { font-weight: 525; }";
@@ -342,7 +342,7 @@ TEST(StyleCompilerTest, ParsesIndependentTypographyPropertiesAndVariableWeights)
     EXPECT_EQ(variableWeight.resolve("label", "", {}, 0).fontWeight, static_cast<U16>(525));
 }
 
-TEST(StyleCompilerTest, AppliesInitialToLonghandsAndShorthands) {
+TEST(StyleCompilerTest, ExpandsInitialValues) {
     constexpr char kInitialStyles[] = "panel { display: flex; margin: 4px; padding: 5px; size: 20px 30px; min-size: 2px 3px; "
                                       "flex: 2 3 4px; overflow: hidden; font: italic 700 21px/25px sans; color: #abcdef; } "
                                       "panel.reset { display: initial; margin: initial; padding: initial; size: initial; min-size: initial; "
@@ -412,7 +412,7 @@ TEST(StyleCompilerTest, RejectsInvalidTypographyForms) {
     }
 }
 
-TEST(StyleCompilerTest, ParsesBordersAndSvgStrokeProperties) {
+TEST(StyleCompilerTest, ParsesBorderProperties) {
     constexpr char kBorderStyles[] = "button { border: 1px #112233ff; border-width: 2px 3px; "
                                      "border-color: #ffffffff; } "
                                      "button > icon { stroke: 4px #abcdef88; stroke-linecap: square; }";
@@ -431,7 +431,7 @@ TEST(StyleCompilerTest, ParsesBordersAndSvgStrokeProperties) {
     EXPECT_EQ(iconStyle.svgStrokeCap, StrokeCap::Square);
 }
 
-TEST(StyleCompilerTest, ResolvesGridSwitchPresentationProperties) {
+TEST(StyleCompilerTest, ResolvesGridSwitchStyles) {
     constexpr char kGridSwitchStyles[] = "input.basic-switch { appearance: base; display: inline-grid; position: relative; }"
                                          "input.basic-switch::slider-track { grid-area: 1 / 1; box-shadow: 0 0 5px rgb(0, 0, 0, .3); }"
                                          "input.basic-switch::slider-fill { width: 37px; }"
@@ -462,7 +462,7 @@ TEST(StyleCompilerTest, ResolvesGridSwitchPresentationProperties) {
     EXPECT_EQ(thumb.translate.y, 0.f);
 }
 
-TEST(StyleCompilerTest, ResolvesFlatSwitchFillSelectorWithMultipleAttributes) {
+TEST(StyleCompilerTest, ResolvesSwitchFillSelector) {
     constexpr char kSwitchFillStyles[] = "input[type=\"checkbox\"][switch]::slider-fill { width: 37px; }";
 
     StyleSheet stylesheet;
@@ -476,7 +476,7 @@ TEST(StyleCompilerTest, ResolvesFlatSwitchFillSelectorWithMultipleAttributes) {
     EXPECT_EQ(stylesheet.resolvePseudoElement(input, "slider-fill").width.resolve(0.f), 0.f);
 }
 
-TEST(StyleCompilerTest, ResolvesCheckmarkPseudoElementsForCheckableInputs) {
+TEST(StyleCompilerTest, ResolvesCheckmarkStyles) {
     constexpr char kCheckmarkStyles[] =
         "input[type=checkbox]::checkmark { content: \"\\2713\" / \"\"; width: 10px; height: 10px; border-radius: 2px; }"
         "input[type=radio]::checkmark { width: 8px; height: 8px; border-width: 1px; }";
@@ -500,7 +500,7 @@ TEST(StyleCompilerTest, ResolvesCheckmarkPseudoElementsForCheckableInputs) {
     EXPECT_EQ(radioMark.borderWidth.top, 1.f);
 }
 
-TEST(StyleCompilerTest, RejectsUnsupportedDisplayValuesWithoutCommittingThem) {
+TEST(StyleCompilerTest, RejectsUnsupportedDisplay) {
     constexpr char kUnsupportedDisplayStyles[] = "panel { display: sideways; } panel#bad { display: sideways; }";
 
     StyleSheet stylesheet;
@@ -514,7 +514,7 @@ TEST(StyleCompilerTest, RejectsUnsupportedDisplayValuesWithoutCommittingThem) {
     EXPECT_EQ(result.errors.front().source, "test.css");
 }
 
-TEST(StyleCompilerTest, AppliesSelectorListsChildRulesAndStates) {
+TEST(StyleCompilerTest, AppliesSelectorRules) {
     constexpr char kSelectorListStyles[] = "button, input { height: 32px; } button > icon { width: 14px; } "
                                            "button:disabled { opacity: .5; }";
 
@@ -603,7 +603,7 @@ TEST(StyleCompilerTest, ProvidesStableStyleDefaults) {
     EXPECT_EQ(style.backgroundColor.a, 0.f);
 }
 
-TEST(StyleCompilerTest, KeepsFloaterHeadAndControlsAsAuthoredElements) {
+TEST(StyleCompilerTest, PreservesAuthoredFloaterParts) {
     auto floater = makeElementValue<HTMLFloaterElement>();
     radia::ui::test::appendFloaterStructure(floater, true, true);
     ASSERT_NE(floater.head(), nullptr);
@@ -617,7 +617,7 @@ TEST(StyleCompilerTest, KeepsFloaterHeadAndControlsAsAuthoredElements) {
     EXPECT_TRUE(floater.minimizeButton()->focusable());
 }
 
-TEST(StyleCompilerTest, ParsesTextPresentationAndFontShorthands) {
+TEST(StyleCompilerTest, ParsesTextShorthands) {
     constexpr char kTextPresentationStyles[] = "panel { letter-spacing: 50%; word-spacing: 25%; text-wrap: nowrap; } "
                                                "p { text-overflow: ellipsis-center; } "
                                                "label { font: italic 525 17px/21px sans; } "
@@ -651,7 +651,7 @@ TEST(StyleCompilerTest, ParsesTextPresentationAndFontShorthands) {
     EXPECT_FALSE(reset.lineHeight.has_value());
 }
 
-TEST(StyleCompilerTest, RejectsInvalidFontAndTextOverflowValues) {
+TEST(StyleCompilerTest, RejectsInvalidTextValues) {
     struct InvalidTextStyleCase {
         const char* name;
         const char* styles;
@@ -716,7 +716,7 @@ TEST(StyleCompilerTest, RejectsNonFiniteEdgeValues) {
     }
 }
 
-TEST(StyleCompilerTest, TokenizesTopLevelValuesWithoutSplittingNestedSyntax) {
+TEST(StyleCompilerTest, PreservesNestedSyntax) {
     const std::vector<std::string> tokens = tokenizeTopLevel("italic 17px/21px sans", true);
     ASSERT_EQ(tokens.size(), std::size_t(5));
     EXPECT_EQ(tokens[2], "/");
@@ -724,7 +724,7 @@ TEST(StyleCompilerTest, TokenizesTopLevelValuesWithoutSplittingNestedSyntax) {
     EXPECT_TRUE(splitTopLevel("rgb(1, 2)), blue", ',').empty());
 }
 
-TEST(StyleCompilerTest, FindsNestedStyleBlocksAndRejectsUnclosedBlocks) {
+TEST(StyleCompilerTest, RejectsUnclosedStyleBlocks) {
     const std::string kNestedStyles = "button { icon { width: 1px; } }";
     const std::size_t open = kNestedStyles.find('{');
     ASSERT_NE(open, std::string::npos);
@@ -735,7 +735,7 @@ TEST(StyleCompilerTest, FindsNestedStyleBlocksAndRejectsUnclosedBlocks) {
     EXPECT_FALSE(matchingBlock("button {", 7).has_value());
 }
 
-TEST(StyleCompilerTest, KeepsStylePropertyRegistryCompleteAndConsistent) {
+TEST(StyleCompilerTest, KeepsPropertyRegistryValid) {
     const std::set<std::string_view> shorthandNames{"font", "flex", "min-size", "overflow"};
     std::set<std::string_view> names;
     for (const StylePropertyDefinition* property = stylePropertyBegin(); property != stylePropertyEnd(); ++property) {

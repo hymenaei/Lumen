@@ -89,7 +89,7 @@ protected:
 };
 } // namespace
 
-TEST_F(SkinResolverTest, LayersDerivedResourcesAfterTheirBase) {
+TEST_F(SkinResolverTest, LayersDerivedResources) {
     makeRoot("base", "test.base");
     const std::filesystem::path derived = root / "derived";
     writeFile(derived / "manifest.json", manifest("test.derived", "\"test.base\"", kRootResourcePaths));
@@ -116,7 +116,7 @@ TEST_F(SkinResolverTest, LayersDerivedResourcesAfterTheirBase) {
     ASSERT_TRUE(compiled.ok()) << (compiled.errors.empty() ? "unknown skin preparation error" : compiled.errors.front().formatted());
 }
 
-TEST_F(SkinResolverTest, MapsManifestDeclaredLayoutDirectoriesToLogicalIds) {
+TEST_F(SkinResolverTest, MapsLayoutDirectories) {
     for (const std::string_view layoutDirectory : {"views", "html", "ui"}) {
         const std::string id = "test." + std::string(layoutDirectory);
         const std::filesystem::path skin = makeRoot(std::string(layoutDirectory), id, layoutDirectory);
@@ -133,7 +133,7 @@ TEST_F(SkinResolverTest, MapsManifestDeclaredLayoutDirectoriesToLogicalIds) {
     }
 }
 
-TEST_F(SkinResolverTest, DoesNotMergeResourcesFromUnrelatedSkins) {
+TEST_F(SkinResolverTest, IsolatesUnrelatedSkins) {
     makeRoot("unrelated", "test.unrelated");
     writeFile(root / "unrelated/radia/xui/unrelated.html", kMinimalFloaterLayout);
     const std::filesystem::path selected = makeRoot("selected", "test.selected");
@@ -161,7 +161,7 @@ TEST_F(SkinResolverTest, RejectsBaseSkinCycles) {
     EXPECT_EQ(result.errors.back().code, "skin.base.cycle");
 }
 
-TEST_F(SkinResolverTest, RejectsMalformedDerivedLayoutOverrides) {
+TEST_F(SkinResolverTest, RejectsMalformedOverrides) {
     const std::filesystem::path base = makeRoot("base", "test.base");
     writeFile(base / "radia/xui/shared.html", kMinimalFloaterLayout);
     const std::filesystem::path derived = root / "derived";
@@ -203,7 +203,7 @@ TEST_F(SkinResolverTest, RejectsManifestResourceTraversal) {
                             [](const radia::ui::Diagnostic& diagnostic) { return diagnostic.code == "skin.manifest.path.traversal"; }));
 }
 
-TEST_F(SkinResolverTest, CapturesImportedStylesheetModulesInTheirLayer) {
+TEST_F(SkinResolverTest, CapturesImportedModules) {
     const std::filesystem::path selected = makeRoot("selected", "test.selected");
     writeFile(selected / "radia/skin.css", "@import \"styles/panel.css\";\nfloater { height: 220px; }");
     writeFile(selected / "radia/styles/panel.css", "floater { width: 410px; }");
@@ -219,7 +219,7 @@ TEST_F(SkinResolverTest, CapturesImportedStylesheetModulesInTheirLayer) {
     ASSERT_TRUE(compiled.ok()) << (compiled.errors.empty() ? "unknown skin preparation error" : compiled.errors.front().formatted());
 }
 
-TEST_F(SkinResolverTest, DoesNotFallBackToBaseStylesheetModules) {
+TEST_F(SkinResolverTest, IsolatesStylesheetModules) {
     const std::filesystem::path base = makeRoot("base", "test.base");
     writeFile(base / "radia/skin.css", "@import \"shared.css\";");
     writeFile(base / "radia/shared.css", "floater { width: 300px; }");
@@ -238,7 +238,7 @@ TEST_F(SkinResolverTest, DoesNotFallBackToBaseStylesheetModules) {
     EXPECT_EQ(compiled.errors.front().source, "test.derived/radia/skin.css");
 }
 
-TEST_F(SkinResolverTest, LoadsBundledSkinResourcesAndStableIdentities) {
+TEST_F(SkinResolverTest, LoadsBundledResources) {
     const std::filesystem::path bundled = viewerSourceRoot() / "skins/default";
     ASSERT_TRUE(std::filesystem::is_directory(bundled)) << bundled.string();
 

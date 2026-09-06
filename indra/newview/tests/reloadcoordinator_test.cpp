@@ -144,7 +144,7 @@ protected:
 };
 } // namespace
 
-TEST_F(SkinReloadCoordinatorTest, CommitsRequestedReloadAsOneTransaction) {
+TEST_F(SkinReloadCoordinatorTest, CommitsReload) {
     EXPECT_FALSE(update().has_value());
     EXPECT_EQ(snapshotSource.captures, 0);
 
@@ -161,7 +161,7 @@ TEST_F(SkinReloadCoordinatorTest, CommitsRequestedReloadAsOneTransaction) {
     EXPECT_FALSE(update().has_value());
 }
 
-TEST_F(SkinReloadCoordinatorTest, BuildsReplacementControllersAgainstCurrentGenerationDuringPreparation) {
+TEST_F(SkinReloadCoordinatorTest, PreparesAgainstCurrentGeneration) {
     EXPECT_EQ(componentState.constructorMessage, "Live");
     snapshotSource.snapshot.add("localization.yaml", "defaultLocale: en\nlocales: {en: {strings: {reload.message: Candidate}}}\n");
     coordinator.request();
@@ -174,7 +174,7 @@ TEST_F(SkinReloadCoordinatorTest, BuildsReplacementControllersAgainstCurrentGene
     EXPECT_EQ(system.resolveText("reload.message"), "Candidate");
 }
 
-TEST_F(SkinReloadCoordinatorTest, RejectsInvalidCandidateWithoutDisturbingLiveState) {
+TEST_F(SkinReloadCoordinatorTest, RejectsInvalidCandidate) {
     coordinator.request();
     const auto baseline = update();
     ASSERT_TRUE(baseline.has_value());
@@ -194,7 +194,7 @@ TEST_F(SkinReloadCoordinatorTest, RejectsInvalidCandidateWithoutDisturbingLiveSt
     EXPECT_EQ(componentState.commits, commits);
 }
 
-TEST_F(SkinReloadCoordinatorTest, AcceptsControllerHandlerAcrossEventTypes) {
+TEST_F(SkinReloadCoordinatorTest, AcceptsHandlersAcrossEvents) {
     snapshotSource.snapshot = conflictingEventSnapshot();
     HTMLFloaterElement* live = installed();
     coordinator.request();
@@ -209,7 +209,7 @@ TEST_F(SkinReloadCoordinatorTest, AcceptsControllerHandlerAcrossEventTypes) {
     EXPECT_TRUE(rejected->errors.empty());
 }
 
-TEST_F(SkinReloadCoordinatorTest, AutoReloadDetectsChangesAfterWatchingIsEnabled) {
+TEST_F(SkinReloadCoordinatorTest, ReloadsDetectedChanges) {
     const auto start = SkinReloadCoordinator::TimePoint{} + 1s;
     snapshotSource.snapshot = skinSnapshot(kEmptyFloaterView, "floater { width: 420px; }");
     coordinator.setSkinAutoReload(true);
@@ -232,7 +232,7 @@ TEST_F(SkinReloadCoordinatorTest, AutoReloadDetectsChangesAfterWatchingIsEnabled
     EXPECT_FALSE(update(start + 750ms).has_value());
 }
 
-TEST_F(SkinReloadCoordinatorTest, ReturnsSnapshotResolutionDiagnosticsBeforePreparation) {
+TEST_F(SkinReloadCoordinatorTest, ReportsResolutionDiagnostics) {
     snapshotSource.rejectCapture = true;
     coordinator.request();
 
@@ -246,7 +246,7 @@ TEST_F(SkinReloadCoordinatorTest, ReturnsSnapshotResolutionDiagnosticsBeforePrep
     EXPECT_EQ(componentState.commits, 0);
 }
 
-TEST_F(SkinReloadCoordinatorTest, ReloadsOnlyImportedStylesheetChanges) {
+TEST_F(SkinReloadCoordinatorTest, ReloadsImportedStylesheets) {
     const auto start = SkinReloadCoordinator::TimePoint{} + 1s;
     snapshotSource.snapshot =
         importedStyleSnapshot("@import \"used.css\";", {{"used.css", "floater { width: 300px; }"}, {"unused.css", "floater { width: 500px; }"}});
@@ -276,7 +276,7 @@ TEST_F(SkinReloadCoordinatorTest, ReloadsOnlyImportedStylesheetChanges) {
     EXPECT_EQ(system.generation(), 4ULL);
 }
 
-TEST_F(SkinReloadCoordinatorTest, RetriesARejectedCandidateAfterItsDependencyIsFixed) {
+TEST_F(SkinReloadCoordinatorTest, RetriesAfterDependencyFix) {
     const auto start = SkinReloadCoordinator::TimePoint{} + 1s;
     snapshotSource.snapshot =
         importedStyleSnapshot("@import \"used.css\";", {{"used.css", "floater { width: 300px; }"}, {"new.css", "floater { width: invalid; }"}});
@@ -309,7 +309,7 @@ TEST_F(SkinReloadCoordinatorTest, RetriesARejectedCandidateAfterItsDependencyIsF
     EXPECT_EQ(system.generation(), 4ULL);
 }
 
-TEST_F(SkinReloadCoordinatorTest, ReplacesEveryOpenComponentInOneGeneration) {
+TEST_F(SkinReloadCoordinatorTest, ReplacesOpenComponents) {
     ControllerState secondComponentState;
     ASSERT_TRUE(components.registerDefinition("second", "view.html", [&secondComponentState](System& system, Document& document) {
         return std::make_unique<Controller>(system, document, secondComponentState);
@@ -332,7 +332,7 @@ TEST_F(SkinReloadCoordinatorTest, ReplacesEveryOpenComponentInOneGeneration) {
     EXPECT_EQ(system.generation(), 2ULL);
 }
 
-TEST_F(SkinReloadCoordinatorTest, ReplacesEveryComponentWhenHandlersCoverMultipleEventTypes) {
+TEST_F(SkinReloadCoordinatorTest, ReplacesComponentsWithHandlers) {
     ControllerState rejectedComponentState;
     ASSERT_TRUE(components.registerDefinition("second", "view.html", [&rejectedComponentState](System& system, Document& document) {
         return std::make_unique<Controller>(system, document, rejectedComponentState);
@@ -356,7 +356,7 @@ TEST_F(SkinReloadCoordinatorTest, ReplacesEveryComponentWhenHandlersCoverMultipl
     EXPECT_EQ(rejectedComponentState.commits, 0);
 }
 
-TEST_F(SkinReloadCoordinatorTest, PreservesLiveStateWhenHostRejectsReplacement) {
+TEST_F(SkinReloadCoordinatorTest, PreservesLiveStateOnHostFailure) {
     HTMLFloaterElement* live = installed();
     host.rejectReplacements = true;
     coordinator.request();
@@ -372,7 +372,7 @@ TEST_F(SkinReloadCoordinatorTest, PreservesLiveStateWhenHostRejectsReplacement) 
     EXPECT_EQ(componentState.commits, 0);
 }
 
-TEST_F(SkinReloadCoordinatorTest, PreservesEveryComponentWhenHostRejectsMultiRootReplacement) {
+TEST_F(SkinReloadCoordinatorTest, PreservesComponentsOnHostFailure) {
     ControllerState secondComponentState;
     ASSERT_TRUE(components.registerDefinition("second", "view.html", [&secondComponentState](System& system, Document& document) {
         return std::make_unique<Controller>(system, document, secondComponentState);
@@ -397,7 +397,7 @@ TEST_F(SkinReloadCoordinatorTest, PreservesEveryComponentWhenHostRejectsMultiRoo
     EXPECT_EQ(host.replacements, 0);
 }
 
-TEST_F(SkinReloadCoordinatorTest, HonorsConfiguredAutomaticReloadIntervals) {
+TEST_F(SkinReloadCoordinatorTest, HonorsReloadInterval) {
     const auto start = SkinReloadCoordinator::TimePoint{} + 1s;
     ASSERT_TRUE(coordinator.setAutoReloadTiming({40ms, 80ms}));
     coordinator.setSkinAutoReload(true);

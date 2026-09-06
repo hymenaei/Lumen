@@ -11,7 +11,7 @@
 
 namespace { using radia::ui::DiagnosticResult; }
 
-TEST(DiagnosticResultTest, AppendsDiagnosticsPreservingSeverityAndOrder) {
+TEST(DiagnosticResultTest, PreservesDiagnosticDetails) {
     DiagnosticResult destination;
     destination.warning("warning.first", "first warning");
     destination.error("error.first", "first error");

@@ -32,7 +32,7 @@ using radia::ui::detail::makeElement;
 using radia::ui::test::makeFloater;
 } // namespace
 
-TEST(SurfaceStateTest, ReflowsWhenHoveredStateChangesLayout) {
+TEST(SurfaceStateTest, ReflowsOnHover) {
     StyleSheet styleSheet;
     constexpr char kStateLayout[] = "button { width: 20px; height: 10px; } button:hover { width: 40px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kStateLayout).ok());
@@ -52,7 +52,7 @@ TEST(SurfaceStateTest, ReflowsWhenHoveredStateChangesLayout) {
     EXPECT_FLOAT_EQ(target->rect().w, 40.f);
 }
 
-TEST(SurfaceStateTest, RefreshesHitTestingWhenHoveredPolicyChanges) {
+TEST(SurfaceStateTest, RefreshesHitTestingOnHover) {
     StyleSheet styleSheet;
     constexpr char kStateHitTest[] = "button { pointer-events: auto; } button:hover { pointer-events: none; }";
     ASSERT_TRUE(styleSheet.loadRadia(kStateHitTest).ok());
@@ -74,7 +74,7 @@ TEST(SurfaceStateTest, RefreshesHitTestingWhenHoveredPolicyChanges) {
     EXPECT_FALSE(target->hasState(ElementState::Hovered));
 }
 
-TEST(SurfaceStateTest, InvalidatesDescendantLayoutForOwnerState) {
+TEST(SurfaceStateTest, InvalidatesDescendantLayout) {
     StyleSheet styleSheet;
     constexpr char kDescendantState[] = "panel { display: flex; flex-direction: row; } label { width: 20px; height: 10px; } "
                                         "panel:hover > label { width: 40px; }";
@@ -99,7 +99,7 @@ TEST(SurfaceStateTest, InvalidatesDescendantLayoutForOwnerState) {
     EXPECT_FLOAT_EQ(target->rect().w, 40.f);
 }
 
-TEST(SurfaceStateTest, ReflowsWhenStyleSelectorAttributeChanges) {
+TEST(SurfaceStateTest, ReflowsOnSelectorChange) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet
                     .loadRadia("input { display: block; width: 20px; height: 10px; } "
@@ -119,7 +119,7 @@ TEST(SurfaceStateTest, ReflowsWhenStyleSelectorAttributeChanges) {
     EXPECT_FLOAT_EQ(target->rect().w, 40.f);
 }
 
-TEST(SurfaceStateTest, RemovesUnavailableElementsFromStationaryHitTesting) {
+TEST(SurfaceStateTest, RemovesUnavailableHitTargets) {
     Surface surface;
     surface.setViewport(100.f, 100.f);
     auto button = makeElement<HTMLButtonElement>();
@@ -147,7 +147,7 @@ TEST(SurfaceStateTest, RemovesUnavailableElementsFromStationaryHitTesting) {
     EXPECT_TRUE(target->hasState(ElementState::Hovered));
 }
 
-TEST(SurfaceStateTest, RestylesCompositePartsWhenOwnerStateChanges) {
+TEST(SurfaceStateTest, RestylesPartsOnOwnerChange) {
     StyleSheet styleSheet;
     constexpr char kCompositeOwnerState[] = "floater { display: flex; flex-direction: column; width: 100px; height: 100px; } "
                                             "floater:minimized > head { height: 40px; } "

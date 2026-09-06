@@ -90,7 +90,7 @@ public:
     std::unique_ptr<HTMLFloaterElement> removed;
 };
 
-TEST(FloatersTest, ReportsFloaterVisibilityFromResolvedDisplayAndVisibility) {
+TEST(FloatersTest, ReportsFloaterVisibility) {
     StyleSheet styleSheet;
     constexpr char kVisibility[] = ".hidden { visibility: hidden; } .none { display: none; }";
     ASSERT_TRUE(styleSheet.loadRadia(kVisibility).ok());
@@ -113,7 +113,7 @@ TEST(FloatersTest, ReportsFloaterVisibilityFromResolvedDisplayAndVisibility) {
     EXPECT_FALSE(surface.hasVisibleFloater());
 }
 
-TEST(FloatersTest, RestoresFloaterWithinViewportAfterMinimization) {
+TEST(FloatersTest, RestoresMinimizedFloater) {
     StyleSheet styleSheet;
     constexpr char kMinimizedFloaterStyle[] = "floater { display: flex; flex-direction: column; } "
                                               "floater > head { height: 30px; display: flex; flex-direction: row; } "
@@ -141,7 +141,7 @@ TEST(FloatersTest, RestoresFloaterWithinViewportAfterMinimization) {
     EXPECT_LT(target->rect().left(), minimizedLeft);
 }
 
-TEST(FloatersTest, NormalizesMinimizedStateWhenHeadIsRemoved) {
+TEST(FloatersTest, NormalizesMinimizedState) {
     Surface surface;
     surface.setViewport(200.f, 200.f);
     auto floater = makeFloater(false, true);
@@ -167,7 +167,7 @@ TEST(FloatersTest, NormalizesMinimizedStateWhenHeadIsRemoved) {
     EXPECT_TRUE(target->minimized());
 }
 
-TEST(FloatersTest, TransfersFloaterBetweenSurfacesAndReportsLifecycle) {
+TEST(FloatersTest, TransfersFloater) {
     Surface first;
     Surface second;
     FloaterDelegateProbe firstDelegate;
@@ -198,7 +198,7 @@ TEST(FloatersTest, TransfersFloaterBetweenSurfacesAndReportsLifecycle) {
     EXPECT_EQ(firstDelegate.closes, 0);
 }
 
-TEST(FloatersTest, ReportsMoveCompletionAfterPointerUp) {
+TEST(FloatersTest, ReportsMoveCompletion) {
     StyleSheet styleSheet;
     constexpr char kMove[] = "floater { display: flex; flex-direction: column; } "
                              "floater > head { height: 30px; display: flex; flex-direction: row; } "
@@ -227,7 +227,7 @@ TEST(FloatersTest, ReportsMoveCompletionAfterPointerUp) {
     EXPECT_EQ(delegate.moveCompletions, 1);
 }
 
-TEST(FloatersTest, RejectsReplacementAfterMoveCompletionUnmountsCurrentFloater) {
+TEST(FloatersTest, RejectsReplacementAfterMove) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("floater { display: flex; flex-direction: column; } floater > head { height: 30px; }").ok());
     Surface surface(styleSheet);
@@ -255,7 +255,7 @@ TEST(FloatersTest, RejectsReplacementAfterMoveCompletionUnmountsCurrentFloater) 
     EXPECT_FALSE(surface.ownsFloater(*currentPointer));
 }
 
-TEST(FloatersTest, DoesNotInvokeCloseLifecycleAfterDelegateDestroysFloater) {
+TEST(FloatersTest, AvoidsCloseAfterDestruction) {
     Surface surface;
     surface.setViewport(200.f, 200.f);
     auto floater = makeFloater(true);
@@ -344,7 +344,7 @@ TEST(FloatersTest, MovesScrollableBodyClipWithFloater) {
     EXPECT_FLOAT_EQ(movedClip->rect.h, initialClip->rect.h);
 }
 
-TEST(FloatersTest, KeepsWrappedBodyContentInsideFloaterWidth) {
+TEST(FloatersTest, KeepsBodyWithinWidth) {
     StyleSheet styleSheet;
     constexpr char kScrollableBody[] = "floater { display: flex; flex-direction: column; } "
                                        "floater > head { height: 30px; display: flex; flex-direction: row; } "
@@ -387,7 +387,7 @@ TEST(FloatersTest, KeepsWrappedBodyContentInsideFloaterWidth) {
     EXPECT_LE(scrollbar->scrollbar->geometry.vertical.bounds.right(), target->body()->rect().right());
 }
 
-TEST(FloatersTest, KeepsHorizontalScrollbarLocalToFloaterBody) {
+TEST(FloatersTest, KeepsScrollbarInBody) {
     StyleSheet styleSheet;
     constexpr char kScrollableBody[] =
         "floater { display: flex; flex-direction: column; } "
@@ -470,7 +470,7 @@ TEST(FloatersTest, KeepsScrollbarsInsideFloaterBorder) {
     EXPECT_FLOAT_EQ(commands[scrollbarIndex - 1].rect.h, target->body()->rect().h);
 }
 
-TEST(FloatersTest, KeepsFloaterResizeCursorOverBorderedScrollbar) {
+TEST(FloatersTest, KeepsResizeCursorOverScrollbar) {
     StyleSheet styleSheet;
     constexpr char kBorderedScrollableFloater[] = "floater { display: flex; flex-direction: column; border: 2px #ffffff; border-radius: 12px; } "
                                                   "floater > head { height: 30px; display: flex; flex-direction: row; } "
@@ -538,7 +538,7 @@ TEST(FloatersTest, ResizesFloaterWithinSurfaceBounds) {
     EXPECT_EQ(delegate.resizeCompletions, 1);
 }
 
-TEST(FloatersTest, HidesResizeCursorWhenResizingIsUnavailable) {
+TEST(FloatersTest, HidesUnavailableResizeCursor) {
     Surface surface;
     surface.setViewport(200.f, 160.f);
     auto floater = makeFloater(false, true);
@@ -553,7 +553,7 @@ TEST(FloatersTest, HidesResizeCursorWhenResizingIsUnavailable) {
     EXPECT_EQ(surface.cursor(), CursorStyle::Default);
 }
 
-TEST(FloatersTest, UsesFrozenWidthForPercentageMinimumSize) {
+TEST(FloatersTest, UsesFrozenWidth) {
     StyleSheet styleSheet;
     constexpr char kPercentageMinimumLayout[] = "floater { size: 80px 100px; min-size: 50%; }";
     ASSERT_TRUE(styleSheet.loadRadia(kPercentageMinimumLayout).ok());
@@ -588,7 +588,7 @@ TEST(FloatersTest, ResizesFloatersMountedInModalLayer) {
     EXPECT_EQ(target->rect().w, 140.f);
 }
 
-TEST(FloatersTest, KeepsFixedOuterSizeWhileTrackingContentGeometry) {
+TEST(FloatersTest, PreservesOuterSize) {
     StyleSheet styleSheet;
     constexpr char kFixedOuter[] = "floater { size: 300px; display: flex; flex-direction: column; } "
                                    "floater > head { height: 20px; } floater > body { display: flex; flex-direction: column; }";
@@ -614,7 +614,7 @@ TEST(FloatersTest, KeepsFixedOuterSizeWhileTrackingContentGeometry) {
     EXPECT_GT(secondContent.y, firstContent.y);
 }
 
-TEST(FloatersTest, ResolvesPercentageGeometryAgainstViewport) {
+TEST(FloatersTest, ResolvesViewportPercentages) {
     StyleSheet styleSheet;
     constexpr char kPercentageGeometryLayout[] = "floater { width: 50%; height: 25%; left: 10%; bottom: 10%; }";
     ASSERT_TRUE(styleSheet.loadRadia(kPercentageGeometryLayout).ok());
@@ -630,7 +630,7 @@ TEST(FloatersTest, ResolvesPercentageGeometryAgainstViewport) {
     EXPECT_FLOAT_EQ(rect.y, 30.f);
 }
 
-TEST(FloatersTest, RoutesResizeThroughPointerTransparentFloater) {
+TEST(FloatersTest, RoutesThroughTransparentFloater) {
     StyleSheet styleSheet;
     constexpr char kPointerTransparentLayout[] = "floater.pass-through { pointer-events: none; }";
     ASSERT_TRUE(styleSheet.loadRadia(kPointerTransparentLayout).ok());
@@ -659,7 +659,7 @@ TEST(FloatersTest, RoutesResizeThroughPointerTransparentFloater) {
     surface.pointerUp({lowerEdgeUnderUpper, PointerButton::Left});
 }
 
-TEST(FloatersTest, KeepsOverflowVisibleDescendantAsPointerTarget) {
+TEST(FloatersTest, KeepsVisibleDescendantTarget) {
     StyleSheet styleSheet;
     constexpr char kOverflowVisiblePassThroughStyle[] = "floater.pass-through { pointer-events: none; "
                                                         "overflow: visible; }";
@@ -686,7 +686,7 @@ TEST(FloatersTest, KeepsOverflowVisibleDescendantAsPointerTarget) {
     EXPECT_FALSE(surface.hasPointerCapture());
 }
 
-TEST(FloatersTest, ReplacesFloaterAndReturnsRetiredRoot) {
+TEST(FloatersTest, ReplacesFloater) {
     Surface surface;
     surface.setViewport(240.f, 180.f);
     auto original = makeElement<HTMLFloaterElement>();
@@ -711,7 +711,7 @@ TEST(FloatersTest, ReplacesFloaterAndReturnsRetiredRoot) {
     EXPECT_EQ(replacementHandle.getMounted(), replacementPointer);
 }
 
-TEST(FloatersTest, ClearsRetiredControlCallbacksBeforeDetachment) {
+TEST(FloatersTest, ClearsRetiredCallbacks) {
     auto floater = makeFloater();
     HTMLFloaterElement* floaterPointer = floater.get();
     bool sawStaleControl = false;
@@ -733,7 +733,7 @@ TEST(FloatersTest, ClearsRetiredControlCallbacksBeforeDetachment) {
     EXPECT_FALSE(floater->closed());
 }
 
-TEST(FloatersTest, RefreshesNamedPartsAfterReplacementAndReordering) {
+TEST(FloatersTest, RefreshesNamedParts) {
     auto floater = makeFloater(true, true);
     Element* originalHead = floater->head();
     Element* originalBody = floater->body();
@@ -763,7 +763,7 @@ TEST(FloatersTest, RefreshesNamedPartsAfterReplacementAndReordering) {
     EXPECT_EQ(floater->body(), originalBody);
 }
 
-TEST(FloatersTest, ReplacesNamedClosePartWithoutLeavingTheRetiredCallback) {
+TEST(FloatersTest, ReplacesClosePart) {
     auto floater = makeFloater(true);
     HTMLButtonElement* oldClose = floater->closeButton();
     auto replacement = HTMLElementFactory::Create("close");

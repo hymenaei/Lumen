@@ -59,7 +59,7 @@ TEST(AuthoredEventCallTest, ParsesSupportedArgumentKinds) {
     EXPECT_TRUE(std::holds_alternative<CurrentAuthoredEventArgument>(arguments[4]));
 }
 
-TEST(AuthoredEventCallTest, ParsesWhitespaceAroundCallAndArguments) {
+TEST(AuthoredEventCallTest, ParsesCallWhitespace) {
     const AuthoredEventCallParseResult parsed = parseAuthoredEventCall("  open ( 'settings' , true )  ");
     ASSERT_TRUE(parsed.ok());
     EXPECT_EQ(parsed.call->name(), "open");

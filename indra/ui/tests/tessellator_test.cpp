@@ -85,7 +85,7 @@ TEST(TessellatorTest, AddsAntiAliasedFringeAroundStroke) {
     EXPECT_FLOAT_EQ(maxY(mesh), 1.5f);
 }
 
-TEST(TessellatorTest, ExpandsOpenStrokeAccordingToCapStyle) {
+TEST(TessellatorTest, ExpandsStrokeByCap) {
     const Path path = line();
     const Mesh butt = tessellateStroke(path, Color(), 2.f, 0.f, StrokeCap::Butt);
     const Mesh square = tessellateStroke(path, Color(), 2.f, 0.f, StrokeCap::Square);

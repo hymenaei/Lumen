@@ -36,7 +36,7 @@ constexpr char kRichTextCatalog[] = "defaultLocale: en\n"
                                     "escaped: 'Write ''{count}'' and &lt;b&gt;' }}}\n";
 } // namespace
 
-TEST(LocalizationCatalogTest, LoadsLocaleMetadataAndSupportsCaseInsensitiveLookup) {
+TEST(LocalizationCatalogTest, LoadsLocaleMetadata) {
     LocalizationCatalog catalog;
     ASSERT_FALSE(catalog.loadYaml(kCatalogWithFallbacks, "localization.yaml").hasErrors());
 
@@ -60,7 +60,7 @@ TEST(LocalizationCatalogTest, LoadsLocaleMetadataAndSupportsCaseInsensitiveLooku
     EXPECT_EQ(arabic->direction, LayoutDirection::RightToLeft);
 }
 
-TEST(LocalizationCatalogTest, ResolvesTranslationsThroughDefaultAndExplicitFallbacks) {
+TEST(LocalizationCatalogTest, ResolvesFallbackTranslations) {
     LocalizationCatalog catalog;
     ASSERT_FALSE(catalog.loadYaml(kCatalogWithFallbacks).hasErrors());
 
@@ -72,7 +72,7 @@ TEST(LocalizationCatalogTest, ResolvesTranslationsThroughDefaultAndExplicitFallb
     EXPECT_EQ(catalog.resolveText("pt", "missingKey"), "missingKey");
 }
 
-TEST(LocalizationCatalogTest, PreservesCommittedCatalogWhenReplacementFails) {
+TEST(LocalizationCatalogTest, PreservesCatalogOnFailure) {
     constexpr char kCommittedCatalog[] = "defaultLocale: en\n"
                                          "locales: {en: {strings: {value: live}}}\n";
 
@@ -88,7 +88,7 @@ TEST(LocalizationCatalogTest, PreservesCommittedCatalogWhenReplacementFails) {
     EXPECT_EQ(catalog.resolveText("en", "value"), "live");
 }
 
-TEST(LocalizationCatalogTest, ReportsMalformedYamlWithSourceDiagnostic) {
+TEST(LocalizationCatalogTest, ReportsYamlDiagnostic) {
     LocalizationCatalog catalog;
     constexpr char kMalformedCatalog[] = "defaultLocale: [";
     const auto result = catalog.loadYaml(kMalformedCatalog, "broken.yaml");
@@ -129,7 +129,7 @@ TEST(LocalizationCatalogTest, AcceptsQuotedNumericTextValues) {
     EXPECT_EQ(catalog.resolveText("en", "version"), "1");
 }
 
-TEST(LocalizationCatalogTest, RejectsLocalesMissingDefaultTranslations) {
+TEST(LocalizationCatalogTest, RejectsMissingDefaults) {
     constexpr char kMissingDefaultTranslationCatalog[] = "defaultLocale: en\n"
                                                          "locales: {en: {strings: {}}, "
                                                          "pt: {strings: "
@@ -152,7 +152,7 @@ TEST(LocalizationCatalogTest, RejectsSnakeCaseStringKeys) {
     EXPECT_TRUE(catalog.loadYaml(kSnakeCaseKeyCatalog).hasErrors());
 }
 
-TEST(LocalizationCatalogTest, AcceptsLowerCamelCaseKeysWithDottedSegments) {
+TEST(LocalizationCatalogTest, AcceptsDottedKeys) {
     constexpr char kDottedKeyCatalog[] = "defaultLocale: en\n"
                                          "locales: {en: {strings: "
                                          "{commonReady: Ready, runtimeUi.level: Level}}}\n";
@@ -165,7 +165,7 @@ TEST(LocalizationCatalogTest, AcceptsLowerCamelCaseKeysWithDottedSegments) {
     EXPECT_EQ(catalog.resolveText("en", "runtimeUi.level"), "Level");
 }
 
-TEST(LocalizationCatalogTest, RejectsInvalidFallbackReferencesAndLocaleIds) {
+TEST(LocalizationCatalogTest, RejectsInvalidFallbacks) {
     struct InvalidFallbackCase {
         const char* name;
         const char* yaml;
@@ -194,7 +194,7 @@ TEST(LocalizationCatalogTest, RejectsInvalidFallbackReferencesAndLocaleIds) {
     }
 }
 
-TEST(LocalizationCatalogTest, MergesLayersAndPreservesInheritedDefaultStrings) {
+TEST(LocalizationCatalogTest, PreservesInheritedStrings) {
     constexpr char kBaseLayerCatalog[] = "defaultLocale: en\n"
                                          "locales: {en: {strings: {title: Base}}}\n";
     constexpr char kDerivedLayerCatalog[] = "locales: {en: {strings: {title: Derived, addedByLayer: Added}}, "
@@ -213,7 +213,7 @@ TEST(LocalizationCatalogTest, MergesLayersAndPreservesInheritedDefaultStrings) {
     EXPECT_EQ(catalog.resolveText("ar", "title"), "مشتق");
 }
 
-TEST(LocalizationCatalogTest, RejectsLayersThatRedefineTheDefaultLocale) {
+TEST(LocalizationCatalogTest, RejectsDefaultLocaleOverride) {
     constexpr char kBaseLayerCatalog[] = "defaultLocale: en\n"
                                          "locales: {en: {strings: {}}}\n";
     constexpr char kDefaultLocaleOverrideLayer[] = "defaultLocale: en\n"
@@ -240,7 +240,7 @@ TEST(LocalizationCatalogTest, SelectsIcuPluralFormsForEachLocale) {
     EXPECT_NE(arabic.find("عنصران"), std::string::npos);
 }
 
-TEST(LocalizationCatalogTest, UsesIcuPluralFormattingForEveryMessage) {
+TEST(LocalizationCatalogTest, FormatsPluralMessages) {
     LocalizationCatalog catalog;
     ASSERT_FALSE(catalog.loadYaml(kPluralCatalog).hasErrors());
 
@@ -249,7 +249,7 @@ TEST(LocalizationCatalogTest, UsesIcuPluralFormattingForEveryMessage) {
     EXPECT_NE(catalog.resolveText("en", request).find("sheep"), std::string::npos);
 }
 
-TEST(LocalizationCatalogTest, LeavesIcuPlaceholderWhenArgumentIsMissing) {
+TEST(LocalizationCatalogTest, PreservesMissingPlaceholder) {
     LocalizationCatalog catalog;
     ASSERT_FALSE(catalog.loadYaml(kPluralCatalog).hasErrors());
 
@@ -278,7 +278,7 @@ TEST(LocalizationCatalogTest, RejectsInvalidIcuMessageValues) {
     }
 }
 
-TEST(LocalizationCatalogTest, ResolvesLocalizedTextAndEscapedHTML) {
+TEST(LocalizationCatalogTest, ResolvesLocalizedText) {
     LocalizationCatalog catalog;
     ASSERT_FALSE(catalog.loadYaml(kRichTextCatalog).hasErrors());
 
@@ -307,7 +307,7 @@ TEST(LocalizationCatalogTest, ResolvesSemanticInlineElements) {
     EXPECT_EQ(catalog.resolveText("en", "value"), "abbr b cite code dfn del em i ins mark q s small strong u");
 }
 
-TEST(LocalizationCatalogTest, AcceptsTranslatedBlockAndControlHTML) {
+TEST(LocalizationCatalogTest, AcceptsTranslatedMarkup) {
     constexpr char kBlockAndControlCatalog[] = "defaultLocale: en\n"
                                                "locales: {en: {strings: {value: '<div><button>Open</button><p>Ready</p>"
                                                "<input type=\"checkbox\" checked></div>'}}}\n";
@@ -358,7 +358,7 @@ TEST(LocalizationCatalogTest, RejectsUnknownHTML) {
     }
 }
 
-TEST(LocalizationCatalogTest, ReportsHTMLAttributeValidationDiagnostics) {
+TEST(LocalizationCatalogTest, ReportsAttributeDiagnostics) {
     struct InvalidHTMLCase {
         const char* yaml;
         const char* diagnostic;
@@ -380,7 +380,7 @@ TEST(LocalizationCatalogTest, ReportsHTMLAttributeValidationDiagnostics) {
     }
 }
 
-TEST(LocalizationCatalogTest, RejectsNonNfcTextAndUnsafeYamlFeatures) {
+TEST(LocalizationCatalogTest, RejectsUnsafeContent) {
     LocalizationCatalog catalog;
     std::string nonNfc = "defaultLocale: en\nlocales: {en: {strings: {value: \"Cafe";
     nonNfc += "\xCC\x81";

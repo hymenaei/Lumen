@@ -93,7 +93,7 @@ protected:
 };
 } // namespace
 
-TEST_F(FieldsetTest, PreservesInlineElementStructureAcrossTextAndLabels) {
+TEST_F(FieldsetTest, PreservesInlineElementStructure) {
     constexpr char kInlineLayout[] = "<panel><p id=\"copy\">before <b>bold<i>both</i></b><br>"
                                      "<i>after</i></p><p id=\"title\">Title</p></panel>";
     constexpr char kLabelInlineLayout[] = "<panel><label id=\"label\" for=\"target\">name <b>important</b>"
@@ -126,7 +126,7 @@ TEST_F(FieldsetTest, PreservesInlineElementStructureAcrossTextAndLabels) {
     EXPECT_EQ(label->textContent(), "name important\ndetail");
 }
 
-TEST_F(FieldsetTest, LocalizesAndDecoratesInlineElements) {
+TEST_F(FieldsetTest, LocalizesInlineElements) {
     LocalizationCatalog localization;
     constexpr char kInlineLocalization[] = "defaultLocale: en\n"
                                            "locales: {en: {strings: "
@@ -158,7 +158,7 @@ TEST_F(FieldsetTest, LocalizesAndDecoratesInlineElements) {
     EXPECT_EQ(decorated->children()[1]->textContent(), "");
 }
 
-TEST_F(FieldsetTest, BuildsAllLocalizedSemanticInlineElements) {
+TEST_F(FieldsetTest, BuildsLocalizedElements) {
     LocalizationCatalog localization;
     constexpr char kSemanticLocalization[] = "defaultLocale: en\n"
                                              "locales: {en: {strings: {semantic: "
@@ -177,7 +177,7 @@ TEST_F(FieldsetTest, BuildsAllLocalizedSemanticInlineElements) {
     for (std::size_t index = 0; index < expected.size(); ++index) EXPECT_EQ(paragraph->children()[index]->elementName(), expected[index]);
 }
 
-TEST_F(FieldsetTest, PreservesLocalizedBreaksBetweenInlineRuns) {
+TEST_F(FieldsetTest, PreservesLocalizedBreaks) {
     LocalizationCatalog localization;
     constexpr char kInlineLocalization[] = "defaultLocale: en\n"
                                            "locales: {en: {strings: "
@@ -257,7 +257,7 @@ TEST_F(FieldsetTest, RejectsUnsupportedInlineElements) {
     }
 }
 
-TEST_F(FieldsetTest, ActivatesLabelTargetOnlyWhenInteractive) {
+TEST_F(FieldsetTest, ActivatesInteractiveLabel) {
     constexpr char kLabelTargetLayout[] = "<panel><label id=\"toggleLabel\" for=\"toggle\">Enable</label>"
                                           "<input type=\"checkbox\" switch=\"true\" id=\"toggle\" onChange=\"toggleChanged()\"></panel>";
     const ResourceBuildResult result = factory.buildElementTreeFromString(kLabelTargetLayout, "label-target.html");
@@ -345,7 +345,7 @@ TEST_F(FieldsetTest, RejectsInvalidLabelRelationships) {
     }
 }
 
-TEST_F(FieldsetTest, ResolvesLabelTargetsInsideIncludedResources) {
+TEST_F(FieldsetTest, ResolvesIncludedLabels) {
     constexpr char kNestedValidLayout[] = "<panel><label id=\"nestedLabel\" for=\"nestedSwitch\">Nested</label>"
                                           "<input type=\"checkbox\" switch=\"true\" id=\"nestedSwitch\"></panel>";
     constexpr char kNestedLabelLayout[] = "<panel><panel filename=\"nested-valid.html\"></panel></panel>";
@@ -371,7 +371,7 @@ TEST_F(FieldsetTest, ResolvesLabelTargetsInsideIncludedResources) {
     EXPECT_FALSE(label->defaultPointerEvents());
 }
 
-TEST_F(FieldsetTest, ResolvesLabelTargetsInFragmentContent) {
+TEST_F(FieldsetTest, ResolvesFragmentLabels) {
     auto root = makeElementValue<HTMLPanelElement>();
     root.innerHTML("<label id='label' for='toggle'>Enable</label><input type='checkbox' switch id='toggle'>");
 
@@ -385,7 +385,7 @@ TEST_F(FieldsetTest, ResolvesLabelTargetsInFragmentContent) {
     EXPECT_FALSE(label->defaultPointerEvents());
 }
 
-TEST_F(FieldsetTest, AcceptsGenericFieldsetChildrenAndScopesLegend) {
+TEST_F(FieldsetTest, ScopesLegend) {
     constexpr char kFieldsetLayout[] = "<fieldset id=\"settings\"><legend id=\"settingsLegend\" class=\"heading\">Settings <b>demo</b></legend>"
                                        "<div class=\"row\"><label for=\"toggle\">Toggle</label>"
                                        "<input type=\"checkbox\" switch=\"true\" id=\"toggle\"><div class=\"hint\">Helpful</div>"
@@ -431,7 +431,7 @@ TEST_F(FieldsetTest, AcceptsGenericFieldsetChildrenAndScopesLegend) {
     EXPECT_LT(fieldsetBox->topBorderGap->right, fieldset->rect().right());
 }
 
-TEST_F(FieldsetTest, EnforcesLegendScopeAndUniqueness) {
+TEST_F(FieldsetTest, EnforcesLegendRules) {
     struct InvalidLayoutCase {
         const char* name;
         const char* source;

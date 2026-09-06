@@ -24,7 +24,7 @@ using radia::ui::Vertex;
 using ::testing::Message;
 } // namespace
 
-TEST(SvgTest, CompilesPathsAndPreservesIconPresentationMetadata) {
+TEST(SvgTest, PreservesIconMetadata) {
     constexpr char kCrossIconSvg[] = "<svg viewBox=\"0 0 24 24\" stroke-width=\"2\" stroke-linecap=\"round\">"
                                      "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg>";
 
@@ -39,7 +39,7 @@ TEST(SvgTest, CompilesPathsAndPreservesIconPresentationMetadata) {
     EXPECT_EQ(icon.strokeCap, StrokeCap::Round);
 }
 
-TEST(SvgTest, CompilesPathAndCircleShapesIntoIndependentContours) {
+TEST(SvgTest, CompilesIndependentContours) {
     constexpr char kPathAndCircleSvg[] = "<svg viewBox=\"0 0 24 24\"><path d=\"m21 21-4.34-4.34\">"
                                          "</path><circle cx=\"11\" cy=\"11\" r=\"8\"/></svg>";
 
@@ -63,7 +63,7 @@ TEST(SvgTest, CompilesPathAndCircleShapesIntoIndependentContours) {
     }
 }
 
-TEST(SvgTest, TransformsAndTessellatesPathsWithinTheTargetBounds) {
+TEST(SvgTest, TessellatesWithinBounds) {
     constexpr char kTransformSvg[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M20 10h-6V4\"/></svg>";
     const Rect target{10.f, 20.f, 16.f, 16.f};
 
@@ -94,7 +94,7 @@ TEST(SvgTest, TransformsAndTessellatesPathsWithinTheTargetBounds) {
     }
 }
 
-TEST(SvgTest, RejectsMalformedPathWithoutExposingPartialIcon) {
+TEST(SvgTest, RejectsMalformedPath) {
     constexpr char kMalformedSvg[] = "<svg viewBox=\"0 0 24 24\">\n<path d=\"M0 0 L10\"/>\n</svg>";
 
     const SvgCompileResult compiled = compileSvgIcon(kMalformedSvg, "icons/broken.svg");
@@ -106,7 +106,7 @@ TEST(SvgTest, RejectsMalformedPathWithoutExposingPartialIcon) {
     EXPECT_GT(compiled.errors.front().line, std::size_t(0));
 }
 
-TEST(SvgTest, RejectsUnsupportedElementsWithoutExposingAnIcon) {
+TEST(SvgTest, RejectsUnsupportedElements) {
     constexpr char kUnsupportedElementSvg[] = "<svg viewBox=\"0 0 24 24\">"
                                               "<rect x=\"0\" y=\"0\" width=\"4\" height=\"4\"/></svg>";
 
@@ -117,7 +117,7 @@ TEST(SvgTest, RejectsUnsupportedElementsWithoutExposingAnIcon) {
     EXPECT_EQ(rejected.errors.front().code, "svg.element.unsupported");
 }
 
-TEST(SvgTest, RejectsUnsupportedAttributesWithoutExposingAnIcon) {
+TEST(SvgTest, RejectsUnsupportedAttributes) {
     constexpr char kUnsupportedAttributeSvg[] = "<svg viewBox=\"0 0 24 24\">"
                                                 "<path d=\"M0 0 L4 4\" opacity=\"0.5\"/></svg>";
 
@@ -128,7 +128,7 @@ TEST(SvgTest, RejectsUnsupportedAttributesWithoutExposingAnIcon) {
     EXPECT_EQ(rejected.errors.front().code, "svg.attribute.unsupported");
 }
 
-TEST(SvgTest, RejectsInvalidSvgBoundariesWithSpecificDiagnostics) {
+TEST(SvgTest, ReportsInvalidBoundaries) {
     struct InvalidSvgCase {
         const char* name;
         const char* source;

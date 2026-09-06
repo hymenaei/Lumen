@@ -34,13 +34,13 @@ TEST(ColorTest, ParsesHexColorsWithOptionalAlpha) {
     expectColor("#ff880080", {1.f, 136.f / 255.f, 0.f, 128.f / 255.f});
 }
 
-TEST(ColorTest, ParsesRgbColorsAcrossCommaAndSpaceSyntax) {
+TEST(ColorTest, ParsesRgbSyntax) {
     expectColor("rgb(255, 128, 0)", {1.f, 128.f / 255.f, 0.f, 1.f});
     expectColor("RGB(100%, 50%, 0%, 25%)", {1.f, .5f, 0.f, .25f});
     expectColor("rgb(255 128 0 / 50%)", {1.f, 128.f / 255.f, 0.f, .5f});
 }
 
-TEST(ColorTest, ClampsRgbComponentsAndAlphaToTheirValidRange) {
+TEST(ColorTest, ClampsComponents) {
     expectColor("rgb(300 -5 0 / 2)", {1.f, 0.f, 0.f, 1.f});
 }
 
@@ -52,12 +52,12 @@ TEST(ColorTest, ParsesHslColorsAcrossHueUnits) {
     expectColor("hsl(200grad 100% 50%)", {0.f, 1.f, 1.f, 1.f});
 }
 
-TEST(ColorTest, ParsesHwbAndNormalizesWhitenessAndBlackness) {
+TEST(ColorTest, ParsesHwb) {
     expectColor("hwb(0 0% 0%)", {1.f, 0.f, 0.f, 1.f});
     expectColor("hwb(120 60% 60% / 50%)", {.5f, .5f, .5f, .5f});
 }
 
-TEST(ColorTest, ConvertsLabAndLchToSrgb) {
+TEST(ColorTest, ConvertsLabColors) {
     expectColor("lab(100% 0 0)", {1.f, 1.f, 1.f, 1.f});
     expectColor("lab(0 0 0 / .25)", {0.f, 0.f, 0.f, .25f});
     expectColor("lab(54.29054295% 80.80492033 69.89098846)", {1.f, 0.f, 0.f, 1.f});
@@ -65,7 +65,7 @@ TEST(ColorTest, ConvertsLabAndLchToSrgb) {
     expectColor("lch(54.29054295% 106.83719118 40.85766886)", {1.f, 0.f, 0.f, 1.f});
 }
 
-TEST(ColorTest, ConvertsOklabAndOklchToSrgb) {
+TEST(ColorTest, ConvertsOklabColors) {
     expectColor("oklab(100% 0 0)", {1.f, 1.f, 1.f, 1.f});
     expectColor("oklab(0 0 0)", {0.f, 0.f, 0.f, 1.f});
     expectColor("oklab(.62795536 .22486306 .12584630)", {1.f, 0.f, 0.f, 1.f});
@@ -73,12 +73,12 @@ TEST(ColorTest, ConvertsOklabAndOklchToSrgb) {
     expectColor("oklch(62.795536% .25768331 29.23388519)", {1.f, 0.f, 0.f, 1.f});
 }
 
-TEST(ColorTest, ParsesTransparentKeywordIgnoringCaseAndWhitespace) {
+TEST(ColorTest, ParsesTransparentKeyword) {
     expectColor("transparent", {0.f, 0.f, 0.f, 0.f});
     expectColor("  TRANSPARENT  ", {0.f, 0.f, 0.f, 0.f});
 }
 
-TEST(ColorTest, RejectsUnsupportedAndMalformedSyntax) {
+TEST(ColorTest, RejectsInvalidSyntax) {
     for (const char* source : {"##ff880080", "rgba(255 128 0 / 50%)", "hsla(120 100% 50% / .5)", "#ggg", "rgb(1, 2, 3 / .5)", "hsl(0 1 1)",
                                "color(1 2 3)", "lab(50%, 0, 0)"}) {
         SCOPED_TRACE(Message() << "unsupported color notation: " << source);

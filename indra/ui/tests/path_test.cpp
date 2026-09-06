@@ -19,7 +19,7 @@ using radia::ui::Vec2;
 using ::testing::Message;
 }
 
-TEST(PathTest, CompilesMixedAbsoluteAndRelativeCommandsIntoClosedContour) {
+TEST(PathTest, CompilesMixedPathCommands) {
     const PathCompileResult compiled = compileSvgPathData("M 0 0 L 10 0 h 5 v 10 l -5 0 Z");
     ASSERT_TRUE(compiled.ok()) << "valid path compiles";
     const auto& commands = compiled.path->commands();
@@ -48,7 +48,7 @@ TEST(PathTest, CompilesMixedAbsoluteAndRelativeCommandsIntoClosedContour) {
     EXPECT_EQ(contours.front().front().y, contours.front().back().y) << "closed contour repeats start";
 }
 
-TEST(PathTest, RefinesCubicFlatteningAsToleranceTightens) {
+TEST(PathTest, RefinesCubicFlattening) {
     Path curve;
     curve.moveTo(0.f, 0.f).cubicTo(0.f, 20.f, 20.f, 20.f, 20.f, 0.f);
 
@@ -72,7 +72,7 @@ TEST(PathTest, RefinesCubicFlatteningAsToleranceTightens) {
     EXPECT_NEAR(maximumY, 15.f, .25f) << "flattened curve follows its expected apex";
 }
 
-TEST(PathTest, CircleFlattensToClosedContourAtExpectedRadius) {
+TEST(PathTest, FlattensCircleContour) {
     const auto contours = Path::circle({11.f, 11.f}, 8.f).flatten();
     ASSERT_EQ(contours.size(), std::size_t{1}) << "circle produces one contour";
     ASSERT_GE(contours.front().size(), std::size_t{2}) << "circle contour has endpoints";
@@ -87,7 +87,7 @@ TEST(PathTest, CircleFlattensToClosedContourAtExpectedRadius) {
     }
 }
 
-TEST(PathTest, RejectsMalformedPathWithSourceLocation) {
+TEST(PathTest, ReportsPathLocation) {
     const PathCompileResult compiled = compileSvgPathData("M0 0 L10", "broken.svg", 7);
     EXPECT_FALSE(compiled.ok()) << "malformed path rejected";
     EXPECT_FALSE(compiled.path.has_value()) << "partial path never exposed";
@@ -111,7 +111,7 @@ TEST(PathTest, RejectsEmptyPathData) {
     EXPECT_EQ(diagnostic.line, std::size_t{3}) << "diagnostic line retained";
 }
 
-TEST(PathTest, RejectsUnsupportedCommandWithDiagnostic) {
+TEST(PathTest, ReportsUnsupportedCommand) {
     const PathCompileResult compiled = compileSvgPathData("M0 0 A4 4 0 0 1 8 8");
     EXPECT_FALSE(compiled.ok()) << "unsupported command rejected";
     ASSERT_FALSE(compiled.errors.empty()) << "unsupported command reports a diagnostic";

@@ -27,7 +27,7 @@ void expectRect(const Rect& actual, const Rect& expected) {
 }
 } // namespace
 
-TEST(ScrollGeometryTest, ComputesClassicTracksArrowsThumbsAndCorner) {
+TEST(ScrollGeometryTest, ComputesClassicScrollbar) {
     ScrollGeometryInput input{};
     input.scrollport = {10.f, 20.f, 100.f, 80.f};
     input.horizontal = {10.f, 200.f, 100.f, true};
@@ -63,7 +63,7 @@ TEST(ScrollGeometryTest, ComputesClassicTracksArrowsThumbsAndCorner) {
     EXPECT_EQ(hitTestScrollbar(geometry, {115.f, 10.f}).part, ScrollbarPart::Corner);
 }
 
-TEST(ScrollGeometryTest, ComputesOverlayBarsWithoutArrowsAndGivesCornerPrecedence) {
+TEST(ScrollGeometryTest, ComputesOverlayScrollbar) {
     ScrollGeometryInput input{};
     input.scrollport = {0.f, 0.f, 100.f, 100.f};
     input.horizontal = {0.f, 200.f, 100.f, true};
@@ -140,7 +140,7 @@ TEST(ScrollGeometryTest, SeparatesThumbFromClassicButtons) {
                     endGeometry.vertical.maxScrollOffset);
 }
 
-TEST(ScrollGeometryTest, MirrorsClassicPlacementAndThumbMovementForRtl) {
+TEST(ScrollGeometryTest, MirrorsRtlScrollbar) {
     ScrollGeometryInput input{};
     input.scrollport = {20.f, 30.f, 100.f, 80.f};
     input.horizontal = {0.f, 200.f, 100.f, true};

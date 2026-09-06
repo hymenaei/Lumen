@@ -34,7 +34,7 @@ protected:
 };
 } // namespace
 
-TEST_F(WorkspacePersistenceTest, RoundTripsKeyedAndKeylessWorkspaceEntries) {
+TEST_F(WorkspacePersistenceTest, PreservesEntries) {
     WorkspacePersistence persistence(layout, workspace);
     const std::vector<ComponentInstanceKey> components{{"inventory", "one"}, {"inventory", "two"}, {"settings", {}}};
 
@@ -56,7 +56,7 @@ TEST_F(WorkspacePersistenceTest, RoundTripsKeyedAndKeylessWorkspaceEntries) {
     EXPECT_EQ(restored, expected);
 }
 
-TEST_F(WorkspacePersistenceTest, IgnoresMalformedWorkspaceIdentities) {
+TEST_F(WorkspacePersistenceTest, RejectsMalformedIdentities) {
     WorkspacePersistence persistence(layout, workspace);
     LLSD saved = LLSD::emptyMap();
     saved["settings"] = LLSD::emptyMap();
@@ -73,7 +73,7 @@ TEST_F(WorkspacePersistenceTest, IgnoresMalformedWorkspaceIdentities) {
     EXPECT_NE(std::find(restored.begin(), restored.end(), ComponentInstanceKey{"profile", "alice"}), restored.end());
 }
 
-TEST_F(WorkspacePersistenceTest, WritesLayoutAndWorkspaceToTheirOwningSettings) {
+TEST_F(WorkspacePersistenceTest, SeparatesSettings) {
     WorkspacePersistence persistence(layout, workspace);
     persistence.savePlacement(ComponentInstanceKey{"settings", {}}, FloaterPlacement{96.f, 64.f, FloaterLogicalSize{480.f, 320.f}, false},
                               ComponentOpenState::Open);
@@ -82,7 +82,7 @@ TEST_F(WorkspacePersistenceTest, WritesLayoutAndWorkspaceToTheirOwningSettings) 
     EXPECT_TRUE(workspace.getLLSD("UIWorkspace")["settings"].isMap());
 }
 
-TEST_F(WorkspacePersistenceTest, EncodesAndDecodesComponentInstanceKeyThroughOneCodec) {
+TEST_F(WorkspacePersistenceTest, RoundTripsInstanceKey) {
     const ComponentInstanceKey component{"profile", "alice"};
 
     EXPECT_TRUE(component.valid());
@@ -91,7 +91,7 @@ TEST_F(WorkspacePersistenceTest, EncodesAndDecodesComponentInstanceKeyThroughOne
     EXPECT_FALSE(ComponentInstanceKey::fromPersistenceKey("alice@profile@extra").has_value());
 }
 
-TEST_F(WorkspacePersistenceTest, SavesOnlyCurrentWorkspaceState) {
+TEST_F(WorkspacePersistenceTest, SavesCurrentState) {
     WorkspacePersistence persistence(layout, workspace);
     const std::vector<ComponentInstanceState> components{{{"profile", "alice"}, true}, {{"demo", {}}, false}};
     LLSD previous = LLSD::emptyMap();
@@ -105,7 +105,7 @@ TEST_F(WorkspacePersistenceTest, SavesOnlyCurrentWorkspaceState) {
     EXPECT_FALSE(saved.has("stale@orphan"));
 }
 
-TEST_F(WorkspacePersistenceTest, RestoresKeylessPlacementFromUserWideLayout) {
+TEST_F(WorkspacePersistenceTest, RestoresDefaultPlacement) {
     LLSD saved = LLSD::emptyMap();
     saved["demo"]["position"].append(31.f);
     saved["demo"]["position"].append(42.f);
@@ -124,7 +124,7 @@ TEST_F(WorkspacePersistenceTest, RestoresKeylessPlacementFromUserWideLayout) {
     EXPECT_FLOAT_EQ(restored.size->height, 240.f);
 }
 
-TEST_F(WorkspacePersistenceTest, LetsKeyedPlacementOverrideDefaultsWithoutChangingThem) {
+TEST_F(WorkspacePersistenceTest, OverridesPlacementDefaults) {
     LLSD layoutValue = LLSD::emptyMap();
     layoutValue["profile"]["position"].append(10.f);
     layoutValue["profile"]["position"].append(20.f);
@@ -151,7 +151,7 @@ TEST_F(WorkspacePersistenceTest, LetsKeyedPlacementOverrideDefaultsWithoutChangi
     EXPECT_DOUBLE_EQ(layout.getLLSD("UILayout")["profile"]["position"][0].asReal(), 10.0);
 }
 
-TEST_F(WorkspacePersistenceTest, CombinesWorkspaceFlagsWithDefaultLayout) {
+TEST_F(WorkspacePersistenceTest, MergesStateWithDefaults) {
     LLSD layoutValue = LLSD::emptyMap();
     layoutValue["demo"]["position"].append(1.f);
     layoutValue["demo"]["position"].append(2.f);
@@ -167,7 +167,7 @@ TEST_F(WorkspacePersistenceTest, CombinesWorkspaceFlagsWithDefaultLayout) {
     EXPECT_TRUE(placement->minimized);
 }
 
-TEST_F(WorkspacePersistenceTest, StoresKeylessFloaterGeometryInLayoutAndOpenStateInWorkspace) {
+TEST_F(WorkspacePersistenceTest, SeparatesGeometryFromOpenState) {
     WorkspacePersistence persistence(layout, workspace);
     const ComponentInstanceKey identity{"demo", {}};
     persistence.savePlacement(identity, FloaterPlacement{760.f, 120.f, FloaterLogicalSize{540.f, 680.f}, true}, ComponentOpenState::Open);
@@ -179,7 +179,7 @@ TEST_F(WorkspacePersistenceTest, StoresKeylessFloaterGeometryInLayoutAndOpenStat
     EXPECT_FLOAT_EQ(restored->x, 760.f);
 }
 
-TEST_F(WorkspacePersistenceTest, ClearsStaleKeylessWorkspaceGeometryWhileKeepingMinimizedState) {
+TEST_F(WorkspacePersistenceTest, ClearsStaleGeometry) {
     LLSD saved = LLSD::emptyMap();
     saved["demo"]["position"].append(900.f);
     saved["demo"]["position"].append(700.f);
@@ -197,7 +197,7 @@ TEST_F(WorkspacePersistenceTest, ClearsStaleKeylessWorkspaceGeometryWhileKeeping
     EXPECT_TRUE(updated["demo"]["minimized"].asBoolean());
 }
 
-TEST_F(WorkspacePersistenceTest, RemovesClosedKeyedPlacementFromWorkspace) {
+TEST_F(WorkspacePersistenceTest, RemovesClosedPlacement) {
     WorkspacePersistence persistence(layout, workspace);
     const ComponentInstanceKey identity{"profile", "alice"};
     persistence.savePlacement(identity, FloaterPlacement{10.f, 20.f, std::nullopt, false}, ComponentOpenState::Open);
@@ -207,7 +207,7 @@ TEST_F(WorkspacePersistenceTest, RemovesClosedKeyedPlacementFromWorkspace) {
     EXPECT_FALSE(workspace.getLLSD("UIWorkspace").has("alice@profile"));
 }
 
-TEST_F(WorkspacePersistenceTest, PreservesUnavailableWorkspaceEntriesExplicitly) {
+TEST_F(WorkspacePersistenceTest, PreservesUnavailableEntries) {
     LLSD saved = LLSD::emptyMap();
     saved["alice@profile"] = LLSD::emptyMap();
     workspace.setLLSD("UIWorkspace", saved);

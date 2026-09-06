@@ -104,7 +104,7 @@ private:
 
 } // namespace
 
-TEST(ValueStateTest, ReportsDirtyStateAndValidation) {
+TEST(ValueStateTest, ReportsValidationState) {
     ValueState<int> clean{4, 4, std::nullopt};
     EXPECT_FALSE(clean.dirty()) << "equal value and baseline are clean";
     EXPECT_EQ(clean.validationStatus(), ValueValidationStatus::Valid) << "omitted validation is valid";
@@ -122,7 +122,7 @@ TEST(ValueStateTest, ReportsDirtyStateAndValidation) {
     EXPECT_EQ(invalid.validationStatus(), ValueValidationStatus::Pending) << "pending validation is distinct";
 }
 
-TEST(MemoryValueBindingTest, PublishesStateChangesUntilSubscriptionReset) {
+TEST(MemoryValueBindingTest, PublishesStateUntilReset) {
     auto binding = std::make_shared<MemoryValueBinding<bool>>(ValueState<bool>{false, false, std::nullopt});
     int publications = 0;
     bool observed = false;
@@ -147,7 +147,7 @@ TEST(MemoryValueBindingTest, PublishesStateChangesUntilSubscriptionReset) {
     EXPECT_EQ(publications, 2) << "reset subscription stops publications";
 }
 
-TEST(InputTest, KeepsOneElementIdentityAcrossInputTypes) {
+TEST(InputTest, PreservesElementIdentity) {
     auto input = makeElementValue<HTMLInputElement>();
 
     EXPECT_EQ(input.elementName(), "input");
@@ -182,7 +182,7 @@ TEST(InputTest, KeepsOneElementIdentityAcrossInputTypes) {
     EXPECT_EQ(input.checkmark()->name(), "checkmark");
 }
 
-TEST(InputTest, AppearanceSelectsNativeCommandOrOrdinaryPaint) {
+TEST(InputTest, SelectsNativeAppearance) {
     auto input = makeElementValue<HTMLInputElement>();
     RecordingPaintContext recording;
     ComputedStyle style;
@@ -212,7 +212,7 @@ TEST(InputTest, AppearanceSelectsNativeCommandOrOrdinaryPaint) {
     EXPECT_EQ(recording.last(PaintCommandKind::NativeInput)->nativeInput->control, NativeInputControl::Switch);
 }
 
-TEST(InputTest, BaseAppearancePaintsCheckmarkContent) {
+TEST(InputTest, PaintsCheckmark) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet
                     .loadRadia("input[type=checkbox] { appearance: base; width: 20px; height: 20px; } "
@@ -231,7 +231,7 @@ TEST(InputTest, BaseAppearancePaintsCheckmarkContent) {
     EXPECT_EQ(text->textOrIconName, "\xE2\x9C\x93");
 }
 
-TEST(InputTest, NativeRequestCarriesResolvedAccentColor) {
+TEST(InputTest, CarriesAccentColor) {
     auto input = makeElementValue<HTMLInputElement>();
     input.type("checkbox").setRect({0.f, 0.f, 13.f, 13.f});
     RecordingPaintContext recording;
@@ -250,7 +250,7 @@ TEST(InputTest, NativeRequestCarriesResolvedAccentColor) {
     EXPECT_NEAR(command->nativeInput->accentColor->a, .8f, 1.0e-6f);
 }
 
-TEST(InputTest, NativeRequestCarriesResolvedColorScheme) {
+TEST(InputTest, CarriesColorScheme) {
     auto input = makeElementValue<HTMLInputElement>();
     input.type("checkbox").setRect({0.f, 0.f, 13.f, 13.f});
     RecordingPaintContext recording;
@@ -265,7 +265,7 @@ TEST(InputTest, NativeRequestCarriesResolvedColorScheme) {
     EXPECT_EQ(command->nativeInput->colorScheme, ColorScheme::Light);
 }
 
-TEST(InputTest, NativeAppearanceBasePaintsCenteredCheckboxAndVectorMark) {
+TEST(InputTest, PaintsNativeCheckbox) {
     NativeAppearanceBase appearance;
     NativeInputPaintRequest request;
     request.control = NativeInputControl::Checkbox;
@@ -313,7 +313,7 @@ TEST(InputTest, NativeAppearanceBasePaintsCenteredCheckboxAndVectorMark) {
     EXPECT_TRUE(mark->nativeInputMark->path.empty());
 }
 
-TEST(InputTest, NativeAppearancePaintsRadioDotAsRoundCircle) {
+TEST(InputTest, PaintsRoundRadioDot) {
     NativeAppearanceBase appearance;
     NativeInputPaintRequest request;
     request.control = NativeInputControl::Radio;
@@ -332,7 +332,7 @@ TEST(InputTest, NativeAppearancePaintsRadioDotAsRoundCircle) {
     EXPECT_FLOAT_EQ(dot->style.borderRadius.topLeft.vertical.pixels, 3.9f);
 }
 
-TEST(InputTest, NativeAppearanceUsesDistinctLightAndDarkInputPalettes) {
+TEST(InputTest, UsesSchemeInputPalette) {
     NativeAppearanceBase appearance;
     NativeInputPaintRequest request;
     request.control = NativeInputControl::Checkbox;
@@ -360,7 +360,7 @@ TEST(InputTest, NativeAppearanceUsesDistinctLightAndDarkInputPalettes) {
     EXPECT_NE(lightBorder.b, darkBorder.b);
 }
 
-TEST(InputTest, NativeAppearanceBasePaintsSwitchInResolvedDirection) {
+TEST(InputTest, PaintsSwitchInResolvedDirection) {
     NativeAppearanceBase appearance;
     NativeInputPaintRequest request;
     request.control = NativeInputControl::Switch;
@@ -408,7 +408,7 @@ public:
     NativeInputMetrics inputMetrics(NativeInputControl) const override { return {{21.f, 22.f}}; }
 };
 
-TEST(InputTest, IntrinsicSizeUsesSurfaceNativeAppearanceMetrics) {
+TEST(InputTest, UsesSurfaceMetricsForIntrinsicSize) {
     StyleSheet styleSheet;
     auto input = makeElementValue<HTMLInputElement>();
     input.type("radio");
@@ -422,7 +422,7 @@ TEST(InputTest, IntrinsicSizeUsesSurfaceNativeAppearanceMetrics) {
     EXPECT_FLOAT_EQ(size.y, 22.f);
 }
 
-TEST(InputTest, DetachedLayoutUsesRequestedNativeAppearanceMetrics) {
+TEST(InputTest, UsesRequestedMetricsWhenDetached) {
     StyleSheet styleSheet;
     auto input = makeElementValue<HTMLInputElement>();
     input.type("radio");
@@ -436,7 +436,7 @@ TEST(InputTest, DetachedLayoutUsesRequestedNativeAppearanceMetrics) {
     EXPECT_FLOAT_EQ(input.desiredSize().y, 22.f);
 }
 
-TEST(InputTest, AttachedLayoutUsesSurfaceNativeAppearanceMetrics) {
+TEST(InputTest, UsesSurfaceMetricsWhenAttached) {
     StyleSheet styleSheet;
     auto input = makeElementValue<HTMLInputElement>();
     input.type("radio");
@@ -451,7 +451,7 @@ TEST(InputTest, AttachedLayoutUsesSurfaceNativeAppearanceMetrics) {
     EXPECT_FLOAT_EQ(input.desiredSize().y, 22.f);
 }
 
-TEST(InputTest, UsesTypeSpecificCheckableActivation) {
+TEST(InputTest, ActivatesByInputType) {
     auto checkbox = makeElementValue<HTMLInputElement>();
     checkbox.type("checkbox");
     checkbox.activate();
@@ -467,7 +467,7 @@ TEST(InputTest, UsesTypeSpecificCheckableActivation) {
     EXPECT_TRUE(radio.checked());
 }
 
-TEST(InputTest, ClearsCheckboxIndeterminateStateOnActivation) {
+TEST(InputTest, ClearsIndeterminateState) {
     auto checkbox = makeElementValue<HTMLInputElement>();
     checkbox.type("checkbox").indeterminate(true);
 
@@ -481,7 +481,7 @@ TEST(InputTest, ClearsCheckboxIndeterminateStateOnActivation) {
     EXPECT_FALSE(checkbox.hasState(ElementState::Indeterminate));
 }
 
-TEST(InputTest, DispatchesInputBeforeChangeForUserActivation) {
+TEST(InputTest, DispatchesInputBeforeChange) {
     auto checkbox = makeElementValue<HTMLInputElement>();
     checkbox.type("checkbox");
     std::vector<std::string> events;
@@ -505,7 +505,7 @@ TEST(InputTest, DispatchesInputBeforeChangeForUserActivation) {
     EXPECT_EQ(events.size(), std::size_t{2}) << "programmatic checked changes do not synthesize DOM events";
 }
 
-TEST(InputTest, GroupsRadioInputsByNameWithinTheirTree) {
+TEST(InputTest, GroupsRadioInputsByName) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto first = makeElement<HTMLInputElement>();
     auto second = makeElement<HTMLInputElement>();
@@ -535,7 +535,7 @@ TEST(InputTest, GroupsRadioInputsByNameWithinTheirTree) {
     EXPECT_TRUE(firstPtr->hasState(ElementState::Indeterminate));
 }
 
-TEST(InputTest, DoesNotGroupRadioInputsWithDifferentOrEmptyNames) {
+TEST(InputTest, SeparatesRadioGroupsByName) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto named = makeElement<HTMLInputElement>();
     auto different = makeElement<HTMLInputElement>();
@@ -559,7 +559,7 @@ TEST(InputTest, DoesNotGroupRadioInputsWithDifferentOrEmptyNames) {
     EXPECT_TRUE(unnamedPtr->checked());
 }
 
-TEST(InputTest, RefreshesRadioGroupWhenACheckedRadioIsRemoved) {
+TEST(InputTest, RefreshesRadioGroupOnRemoval) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto checked = makeElement<HTMLInputElement>();
     auto remaining = makeElement<HTMLInputElement>();
@@ -577,7 +577,7 @@ TEST(InputTest, RefreshesRadioGroupWhenACheckedRadioIsRemoved) {
     EXPECT_TRUE(remainingPointer->hasState(ElementState::Indeterminate));
 }
 
-TEST(InputTest, RefreshesRadioGroupWhenAWrapperIsRemoved) {
+TEST(InputTest, RefreshesRadioGroupAfterWrapper) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto wrapper = makeElement<HTMLPanelElement>();
     auto checked = makeElement<HTMLInputElement>();
@@ -597,7 +597,7 @@ TEST(InputTest, RefreshesRadioGroupWhenAWrapperIsRemoved) {
     EXPECT_TRUE(remainingPointer->hasState(ElementState::Indeterminate));
 }
 
-TEST(SwitchTest, ActivationTogglesAndNotifiesCheckedChange) {
+TEST(SwitchTest, NotifiesCheckedChange) {
     auto control = makeElementValue<HTMLInputElement>();
     control.type("checkbox").switchMode(true);
     std::vector<bool> changes;
@@ -614,7 +614,7 @@ TEST(SwitchTest, ActivationTogglesAndNotifiesCheckedChange) {
     EXPECT_FALSE(changes.back()) << "second notification carries the unchecked value";
 }
 
-TEST(SwitchTest, ExposesGeneratedSliderPseudoElementsWithoutDomChildren) {
+TEST(SwitchTest, ExposesSliderPseudos) {
     auto control = makeElementValue<HTMLInputElement>();
     control.type("checkbox").switchMode(true);
 
@@ -633,7 +633,7 @@ TEST(SwitchTest, ExposesGeneratedSliderPseudoElementsWithoutDomChildren) {
     EXPECT_EQ(control.sliderThumb(), sliderThumb);
 }
 
-TEST(SwitchTest, PublishesInputValueStateUntilSubscriptionReset) {
+TEST(SwitchTest, PublishesValueState) {
     auto control = makeElementValue<HTMLInputElement>();
     control.type("checkbox").switchMode(true);
     std::size_t publications = 0;
@@ -659,7 +659,7 @@ TEST(SwitchTest, PublishesInputValueStateUntilSubscriptionReset) {
     EXPECT_EQ(publications, std::size_t{1}) << "reset subscription stops value state publications";
 }
 
-TEST(SwitchTest, StopsValueStateNotificationWhenObserverDestroysInput) {
+TEST(SwitchTest, StopsNotificationOnDestruction) {
     auto control = makeElement<HTMLInputElement>();
     control->type("checkbox").switchMode(true);
     std::size_t laterObserverCalls = 0;

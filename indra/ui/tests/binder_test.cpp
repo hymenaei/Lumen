@@ -183,7 +183,7 @@ TestBindingResult finishBinding(Binder& binder) {
 }
 } // namespace
 
-TEST(BinderTest, KeepsCommittedEventBindingInactiveUntilActivated) {
+TEST(BinderTest, BindingStartsInactive) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -205,7 +205,7 @@ TEST(BinderTest, KeepsCommittedEventBindingInactiveUntilActivated) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(BinderTest, CommitsEventBindingAndResolvesTypedElement) {
+TEST(BinderTest, ResolvesTypedElement) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     button->setId("save");
@@ -224,7 +224,7 @@ TEST(BinderTest, CommitsEventBindingAndResolvesTypedElement) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(BinderTest, DistinguishesTypedAndMissingElementLookups) {
+TEST(BinderTest, DistinguishesMissingElements) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     button->setId("save");
@@ -253,7 +253,7 @@ TEST(BinderTest, DistinguishesTypedAndMissingElementLookups) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(BinderTest, InvalidatesElementReferenceAfterElementRemoval) {
+TEST(BinderTest, InvalidatesRemovedReference) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     button->setId("temporary");
@@ -268,7 +268,7 @@ TEST(BinderTest, InvalidatesElementReferenceAfterElementRemoval) {
     EXPECT_EQ(reference.get(), nullptr);
 }
 
-TEST(BinderTest, DetachesEventHandlerWhenBindingIsDestroyed) {
+TEST(BinderTest, DetachesHandlerOnDestruction) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* source = button.get();
@@ -288,7 +288,7 @@ TEST(BinderTest, DetachesEventHandlerWhenBindingIsDestroyed) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(BinderTest, AllowsOneHandlerAcrossMultipleEventTypes) {
+TEST(BinderTest, SharesHandlerAcrossEvents) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* buttonTarget = button.get();
@@ -338,7 +338,7 @@ TEST(BinderTest, BindsChangeEventsWithCurrentState) {
     EXPECT_EQ(changes, 1);
 }
 
-TEST(BinderTest, ResolvesIdsWithinIndependentResourceScopes) {
+TEST(BinderTest, ScopesElementLookup) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto left = makeElement<HTMLPanelElement>();
     left->setId("left");
@@ -381,7 +381,7 @@ TEST(BinderTest, ResolvesIdsWithinIndependentResourceScopes) {
     EXPECT_NE(leftBound.get(), rightBound.get());
 }
 
-TEST(BinderTest, PreparesReplacementWithoutMutatingLiveBinding) {
+TEST(BinderTest, ProtectsLiveBinding) {
     auto live = makeElementValue<HTMLPanelElement>();
     auto liveButton = makeElement<HTMLButtonElement>();
     HTMLButtonElement* liveButtonPtr = liveButton.get();
@@ -428,7 +428,7 @@ TEST(BinderTest, PreparesReplacementWithoutMutatingLiveBinding) {
     EXPECT_TRUE(static_cast<bool>(removedBinding));
 }
 
-TEST(BinderTest, RejectsPreparedBindingAfterItsBoundTargetMoves) {
+TEST(BinderTest, RejectsMovedTarget) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -447,7 +447,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterItsBoundTargetMoves) {
     EXPECT_FALSE(static_cast<bool>(prepared.binding.commit()));
 }
 
-TEST(BinderTest, RejectsPreparedBindingAfterItsRootTopologyChanges) {
+TEST(BinderTest, RejectsChangedTopology) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("unused"));
@@ -464,7 +464,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterItsRootTopologyChanges) {
     EXPECT_FALSE(static_cast<bool>(prepared.binding.commit()));
 }
 
-TEST(BinderTest, RejectsPreparedBindingAfterADeclarationChanges) {
+TEST(BinderTest, RejectsChangedDeclaration) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -482,7 +482,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterADeclarationChanges) {
     EXPECT_FALSE(static_cast<bool>(prepared.binding.commit()));
 }
 
-TEST(BinderTest, RejectsPreparedBindingAfterItsRootIsDestroyed) {
+TEST(BinderTest, RejectsDestroyedRoot) {
     PreparedBinding prepared;
     {
         auto root = makeElementValue<HTMLPanelElement>();
@@ -497,7 +497,7 @@ TEST(BinderTest, RejectsPreparedBindingAfterItsRootIsDestroyed) {
     EXPECT_FALSE(static_cast<bool>(prepared.commit()));
 }
 
-TEST(BinderTest, AllowsUnmatchedOptionalEventHandler) {
+TEST(BinderTest, AllowsOptionalHandler) {
     auto root = makeElementValue<HTMLPanelElement>();
     Binder binder(root);
     bindEvent(binder, "missing", [] {});
@@ -520,7 +520,7 @@ TEST(BinderTest, WarnsForUnhandledLayoutEvent) {
     EXPECT_EQ(result.warnings.front().code, "binding.event.unhandled");
 }
 
-TEST(BinderTest, PreservesLiveValueBindingUntilReplacementCommits) {
+TEST(BinderTest, PreservesLiveBinding) {
     auto liveRoot = makeElementValue<HTMLPanelElement>();
     auto live = std::make_shared<TestValueBinding<bool>>(false);
     TestSettingResolver liveResolver;
@@ -561,7 +561,7 @@ TEST(BinderTest, PreservesLiveValueBindingUntilReplacementCommits) {
     EXPECT_TRUE(reference->state().value);
 }
 
-TEST(BinderTest, DeactivatesValueBindingWhileItsRootIsUnmounted) {
+TEST(BinderTest, PausesBindingWhileUnmounted) {
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(
         "<panel><input id=\"control\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\"></panel>", "binding-lifetime.html");
     ASSERT_TRUE(buildResult.ok());
@@ -608,7 +608,7 @@ TEST(BinderTest, DeactivatesValueBindingWhileItsRootIsUnmounted) {
     EXPECT_FALSE(inputPointer->checked());
 }
 
-TEST(BinderTest, RejectsDestroyedValueAttachmentDuringActivation) {
+TEST(BinderTest, RejectsDestroyedAttachment) {
     ResourceBuildResult buildResult =
         ResourceCompiler().buildElementTreeFromString("<panel><input id=\"first\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\">"
                                                       "<input id=\"second\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\"></panel>",
@@ -638,7 +638,7 @@ TEST(BinderTest, RejectsDestroyedValueAttachmentDuringActivation) {
     EXPECT_EQ(secondRef.get(), nullptr);
 }
 
-TEST(BinderTest, ResynchronizesValueBindingWhenRootRemounts) {
+TEST(BinderTest, ResyncsBindingOnRemount) {
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(
         "<panel><input id=\"control\" type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\"></panel>", "binding-remount.html");
     ASSERT_TRUE(buildResult.ok());
@@ -671,7 +671,7 @@ TEST(BinderTest, ResynchronizesValueBindingWhenRootRemounts) {
     EXPECT_TRUE(inputPointer->checked());
 }
 
-TEST(BinderTest, AppliesSynchronousValueBindingWriteWithoutObserverNotification) {
+TEST(BinderTest, WritesWithoutNotification) {
     constexpr char kSilentSettingLayout[] = "<input type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\">";
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(kSilentSettingLayout, "silent-setting.html");
     ASSERT_TRUE(buildResult.ok());
@@ -719,7 +719,7 @@ TEST(BinderTest, RejectsSettingTypeMismatch) {
     EXPECT_EQ(result.errors.front().code, "binding.setting.type_mismatch");
 }
 
-TEST(BinderTest, ResolvesRepeatedValueRequirementsIndependently) {
+TEST(BinderTest, ResolvesRepeatedRequirements) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto setting = std::make_shared<TestValueBinding<bool>>(false);
     TestSettingResolver resolver;
@@ -737,7 +737,7 @@ TEST(BinderTest, ResolvesRepeatedValueRequirementsIndependently) {
     EXPECT_EQ(second.get(), setting.get());
 }
 
-TEST(BinderTest, ReplacesValueBindingOnTheSameControl) {
+TEST(BinderTest, ReplacesControlBinding) {
     constexpr char kReplaceableValueLayout[] = "<input type=\"checkbox\" switch=\"true\" setting=\"replaceable-value\">";
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(kReplaceableValueLayout, "replaceable-value.html");
     ASSERT_TRUE(buildResult.ok());
@@ -770,7 +770,7 @@ TEST(BinderTest, ReplacesValueBindingOnTheSameControl) {
     EXPECT_FALSE(firstProvider->state().value);
 }
 
-TEST(BinderTest, WarnsWhenAuthoredEventArgumentsDoNotMatchHandler) {
+TEST(BinderTest, WarnsOnArgumentMismatch) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -805,7 +805,7 @@ TEST(BinderTest, DispatchesGenericEventHandler) {
     EXPECT_EQ(invocations, 1);
 }
 
-TEST(BinderTest, DispatchesTypedAuthoredEventArguments) {
+TEST(BinderTest, DispatchesTypedArguments) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto select = makeElement<HTMLButtonElement>();
     HTMLButtonElement* selectTarget = select.get();
@@ -853,7 +853,7 @@ TEST(BinderTest, DispatchesTypedAuthoredEventArguments) {
     EXPECT_EQ(source, inspectTarget);
 }
 
-TEST(BinderTest, RejectsInvalidRegisteredHandlerName) {
+TEST(BinderTest, RejectsInvalidHandlerName) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     setAuthoredEventCall(*button, kClickEvent, AuthoredEventCall("bad_action"));
@@ -867,7 +867,7 @@ TEST(BinderTest, RejectsInvalidRegisteredHandlerName) {
     EXPECT_EQ(result.errors.front().code, "binding.event.name_invalid");
 }
 
-TEST(BinderTest, DispatchesCommonElementEventContext) {
+TEST(BinderTest, DispatchesEventContext) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -891,7 +891,7 @@ TEST(BinderTest, DispatchesCommonElementEventContext) {
     EXPECT_EQ(type, "click");
 }
 
-TEST(BinderTest, BindsSwitchSettingAndPropagatesUpdates) {
+TEST(BinderTest, BindsSwitchSetting) {
     constexpr char kDemoSettingLayout[] = "<input type=\"checkbox\" switch=\"true\" setting=\"demo-enabled\">";
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(kDemoSettingLayout, "setting.html");
     ASSERT_TRUE(buildResult.ok());
@@ -936,7 +936,7 @@ TEST(BinderTest, RejectsMismatchedLayoutSetting) {
     EXPECT_EQ(result.errors.front().code, "binding.setting.type_mismatch");
 }
 
-TEST(BinderTest, SharesOneSettingAcrossMultipleControls) {
+TEST(BinderTest, SharesSetting) {
     constexpr char kSharedSettingLayout[] = "<panel>"
                                             "<input type=\"checkbox\" switch=\"true\" id=\"first\" setting=\"shared-enabled\">"
                                             "<input type=\"checkbox\" switch=\"true\" id=\"second\" setting=\"shared-enabled\">"
@@ -967,7 +967,7 @@ TEST(BinderTest, SharesOneSettingAcrossMultipleControls) {
     EXPECT_EQ(provider->observerCount(), std::size_t{0});
 }
 
-TEST(BinderTest, RejectsMisreportedSettingTypeSafely) {
+TEST(BinderTest, RejectsMisreportedType) {
     constexpr char kMisreportedSettingLayout[] = "<input type=\"checkbox\" switch=\"true\" setting=\"misreported-setting\">";
     ResourceBuildResult buildResult = ResourceCompiler().buildElementTreeFromString(kMisreportedSettingLayout, "misreported-setting.html");
     ASSERT_TRUE(buildResult.ok());

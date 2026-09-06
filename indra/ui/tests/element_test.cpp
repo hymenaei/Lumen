@@ -219,7 +219,7 @@ std::string paintedText(const RecordingPaintContext& recording) {
 }
 } // namespace
 
-TEST(ElementTest, ElementReferencesExpireAfterUnmount) {
+TEST(ElementTest, ExpiresReferencesOnUnmount) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     ElementRef<HTMLButtonElement> reference(button.get());
@@ -229,7 +229,7 @@ TEST(ElementTest, ElementReferencesExpireAfterUnmount) {
     EXPECT_EQ(reference.get(), nullptr);
 }
 
-TEST(EventTest, TargetBecomesNullWhenDispatchDestroysIt) {
+TEST(EventTest, ClearsTargetOnDestruction) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto button = makeElement<HTMLButtonElement>();
     HTMLButtonElement* target = button.get();
@@ -255,7 +255,7 @@ TEST(EventTest, TargetBecomesNullWhenDispatchDestroysIt) {
     EXPECT_TRUE(root.children().empty());
 }
 
-TEST(EventTest, CheckedPayloadAccessorRejectsOtherPayloads) {
+TEST(EventTest, RejectsWrongPayload) {
     auto target = makeElementValue<HTMLButtonElement>();
     Event event(kClickEvent, target);
 
@@ -282,7 +282,7 @@ TEST(ElementTest, DisabledButtonsDoNotActivate) {
     EXPECT_EQ(activations, 1);
 }
 
-TEST(ElementTest, ChildInsertionMaintainsOrderAndOwnership) {
+TEST(ElementTest, PreservesChildOrder) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto first = makeElement<HTMLButtonElement>();
     first->setId("first");
@@ -298,7 +298,7 @@ TEST(ElementTest, ChildInsertionMaintainsOrderAndOwnership) {
     EXPECT_TRUE(root.children().empty());
 }
 
-TEST(ElementTest, StoresGenericAttributesInAuthorOrder) {
+TEST(ElementTest, PreservesAttributeOrder) {
     auto element = makeElementValue<Element>("p");
 
     element.setAttribute("data-state", "ready");
@@ -407,7 +407,7 @@ TEST(NodeTest, DetachedMutationMethodsAreNoOps) {
     EXPECT_EQ(node->replaceWith(makeElement<HTMLLabelElement>("replacement")), nullptr);
 }
 
-TEST(FragmentTest, ConsumesChildrenInOrderAndUpdatesParents) {
+TEST(FragmentTest, PreservesChildOrder) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto fragment = std::make_unique<Fragment>();
     auto first = makeElement<HTMLLabelElement>("first");
@@ -432,7 +432,7 @@ TEST(FragmentTest, ConsumesChildrenInOrderAndUpdatesParents) {
     EXPECT_EQ(root.childNodes()[2]->asElement()->textContent(), "last");
 }
 
-TEST(FragmentTest, ReplacesWithFragmentWithoutReversingChildren) {
+TEST(FragmentTest, PreservesChildOrderOnReplace) {
     auto root = makeElementValue<HTMLPanelElement>();
     Node* old = root.append(makeElement<HTMLLabelElement>("old"));
     root.append(makeElement<HTMLLabelElement>("tail"));
@@ -449,7 +449,7 @@ TEST(FragmentTest, ReplacesWithFragmentWithoutReversingChildren) {
     EXPECT_EQ(root.children()[2]->textContent(), "tail");
 }
 
-TEST(FragmentTest, OrdersMutationCallbacksAroundTreeAttachmentAndRemoval) {
+TEST(FragmentTest, OrdersMutationCallbacks) {
     std::vector<std::string> events;
     auto outer = std::make_unique<MutationCallbackProbe>(events, "outer");
     auto root = std::make_unique<MutationCallbackProbe>(events, "root");
@@ -475,7 +475,7 @@ TEST(FragmentTest, OrdersMutationCallbacksAroundTreeAttachmentAndRemoval) {
     EXPECT_EQ(events[2], "outer.descendant-removed");
 }
 
-TEST(FragmentTest, AllowsChildrenClearedCallbackToDestroyParent) {
+TEST(FragmentTest, AllowsParentDestructionDuringClear) {
     std::unique_ptr<Element> owner;
     owner = std::make_unique<DestroyOnChildrenCleared>(&owner);
     Element* parent = owner.get();
@@ -486,7 +486,7 @@ TEST(FragmentTest, AllowsChildrenClearedCallbackToDestroyParent) {
     EXPECT_FALSE(owner);
 }
 
-TEST(FragmentTest, FullyDetachesRemainingChildrenWhenRemovalCallbackDestroysParent) {
+TEST(FragmentTest, DetachesChildrenBeforeParent) {
     Surface surface;
     auto root = makeElement<HTMLPanelElement>();
     HTMLPanelElement* rootPtr = root.get();
@@ -504,7 +504,7 @@ TEST(FragmentTest, FullyDetachesRemainingChildrenWhenRemovalCallbackDestroysPare
     EXPECT_FALSE(remainingChildWasMounted);
 }
 
-TEST(FragmentTest, DetachesRemainingChildrenWhenRemovalCallbackDestroysSurface) {
+TEST(FragmentTest, DetachesChildrenBeforeSurface) {
     auto surface = std::make_unique<Surface>();
     auto root = makeElement<HTMLPanelElement>();
     auto parent = std::make_unique<DestroySurfaceOnChildWillBeRemoved>(&surface);
@@ -522,7 +522,7 @@ TEST(FragmentTest, DetachesRemainingChildrenWhenRemovalCallbackDestroysSurface) 
     EXPECT_FALSE(remainingChildWasMounted);
 }
 
-TEST(FragmentTest, ParsesAndSerializesBoundedHTML) {
+TEST(FragmentTest, RoundTripsBoundedHTML) {
     auto root = makeElementValue<HTMLPanelElement>();
 
     root.innerHTML("<p id='123:bad.id' class='primary.bad @token'>Hello &amp; <br>world</p><input type=checkbox>");
@@ -551,7 +551,7 @@ TEST(FragmentTest, InnerHTMLReplacesExistingChildren) {
     EXPECT_EQ(root.children().front()->textContent(), "new");
 }
 
-TEST(FragmentTest, KeepsSlashInUnquotedAttributeValues) {
+TEST(FragmentTest, KeepsSlashInUnquotedValue) {
     auto root = makeElementValue<HTMLPanelElement>();
 
     root.innerHTML("<input name=mode/>");
@@ -559,7 +559,7 @@ TEST(FragmentTest, KeepsSlashInUnquotedAttributeValues) {
     EXPECT_EQ(root.innerHTML(), "<input type=\"text\" name=\"mode/\">");
 }
 
-TEST(FragmentTest, AppliesInputTypeBeforeStateAttributes) {
+TEST(FragmentTest, AppliesInputTypeFirst) {
     auto root = makeElementValue<HTMLPanelElement>();
 
     root.innerHTML("<input checked type=checkbox>");
@@ -570,7 +570,7 @@ TEST(FragmentTest, AppliesInputTypeBeforeStateAttributes) {
     EXPECT_TRUE(input->checked());
 }
 
-TEST(FragmentTest, TreatsBooleanAttributesAsPresenceFlags) {
+TEST(FragmentTest, TreatsBooleanAttributesAsPresence) {
     auto root = makeElementValue<HTMLPanelElement>();
 
     root.innerHTML("<input type=checkbox checked=false switch=0>");
@@ -593,7 +593,7 @@ TEST(FragmentTest, TreatsBooleanAttributesAsPresenceFlags) {
     EXPECT_TRUE(button->disabled());
 }
 
-TEST(FragmentTest, SerializesViewerOwnedPartsOnlyThroughTheirAuthoringElement) {
+TEST(FragmentTest, SerializesOwnedParts) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto input = makeElement<HTMLInputElement>();
     input->type("checkbox").switchMode(true);
@@ -602,7 +602,7 @@ TEST(FragmentTest, SerializesViewerOwnedPartsOnlyThroughTheirAuthoringElement) {
     EXPECT_EQ(root.innerHTML(), "<input type=\"checkbox\" switch>");
 }
 
-TEST(FragmentTest, SerializesGenericAttributesFromElementStorage) {
+TEST(FragmentTest, SerializesStoredAttributes) {
     auto root = makeElementValue<Element>("section");
     auto child = makeElement<Element>("p");
     child->setAttribute("data-state", "ready");
@@ -625,7 +625,7 @@ TEST(FragmentTest, TreatsMalformedHTMLAsLiteralText) {
     EXPECT_EQ(root.innerHTML(), "&lt;p/&gt;");
 }
 
-TEST(ElementTest, LabelTargetBecomesUnavailableWhenIdTurnsAmbiguous) {
+TEST(ElementTest, RejectsAmbiguousLabelTarget) {
     auto root = makeElementValue<HTMLPanelElement>();
     root.innerHTML("<input id=target><label for=target>Target</label>");
 
@@ -651,7 +651,7 @@ TEST(HTMLNamesTest, KeepsVoidnessInTheHTMLVocabulary) {
     EXPECT_FALSE(isVoidHTMLTag(HTMLTag::Div));
 }
 
-TEST(ElementTest, ConstChildrenExposeConstBorrowedElements) {
+TEST(ElementTest, ExposesConstChildren) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto childOwner = makeElement<HTMLLabelElement>("child");
     const Element* expected = childOwner.get();
@@ -665,7 +665,7 @@ TEST(ElementTest, ConstChildrenExposeConstBorrowedElements) {
     EXPECT_EQ(children.front(), expected);
 }
 
-TEST(DocumentTest, OwnsDocumentElementAndTransfersDetachedChildren) {
+TEST(DocumentTest, AdoptsDetachedChildren) {
     auto documentElementOwner = makeElement<HTMLPanelElement>();
     documentElementOwner->setId("root");
     Element* documentElement = documentElementOwner.get();
@@ -702,7 +702,7 @@ TEST(DocumentTest, OwnsDocumentElementAndTransfersDetachedChildren) {
     EXPECT_EQ(document.getElementById("button"), button);
 }
 
-TEST(DocumentTest, CreatesBaseAndConcreteHTMLElementsThroughFactory) {
+TEST(DocumentTest, CreatesElements) {
     auto documentElementOwner = makeElement<HTMLPanelElement>();
     Document document(std::move(documentElementOwner));
 
@@ -718,7 +718,7 @@ TEST(DocumentTest, CreatesBaseAndConcreteHTMLElementsThroughFactory) {
     EXPECT_EQ(button->elementName(), "button");
 }
 
-TEST(DocumentTest, ReparentsDetachedElementsWithinDocument) {
+TEST(DocumentTest, ReparentsDetachedElements) {
     auto documentElementOwner = makeElement<HTMLPanelElement>();
     Document document(std::move(documentElementOwner));
     Element* documentElement = document.documentElement();
@@ -766,7 +766,7 @@ TEST(ElementTreeDeathTest, RejectsNullChild) {
     EXPECT_TRUE(root.children().empty());
 }
 
-TEST(DocumentTest, AdoptsCrossDocumentChildOnInsertion) {
+TEST(DocumentTest, AdoptsCrossDocumentChild) {
     auto firstRootOwner = makeElement<HTMLPanelElement>();
     Document first(std::move(firstRootOwner));
     auto secondRootOwner = makeElement<HTMLPanelElement>();
@@ -781,7 +781,7 @@ TEST(DocumentTest, AdoptsCrossDocumentChildOnInsertion) {
     EXPECT_EQ(second.getElementById("adopted"), child);
 }
 
-TEST(DocumentTest, AdoptsDetachedSubtreesBeforeInsertion) {
+TEST(DocumentTest, AdoptsDetachedSubtrees) {
     auto firstRootOwner = makeElement<HTMLPanelElement>();
     Document first(std::move(firstRootOwner));
     auto secondRootOwner = makeElement<HTMLPanelElement>();
@@ -803,7 +803,7 @@ TEST(DocumentTest, AdoptsDetachedSubtreesBeforeInsertion) {
     EXPECT_EQ(second.getElementById("nested-adopted"), descendantElement);
 }
 
-TEST(DocumentTest, AllowsDuplicateIdsAndReturnsFirstTreeOrderMatch) {
+TEST(DocumentTest, FindsFirstDuplicateId) {
     auto documentElementOwner = makeElement<HTMLPanelElement>();
     Document document(std::move(documentElementOwner));
     Element* documentElement = document.documentElement();
@@ -824,7 +824,7 @@ TEST(DocumentTest, AllowsDuplicateIdsAndReturnsFirstTreeOrderMatch) {
     EXPECT_EQ(document.getElementById("duplicate"), second);
 }
 
-TEST(DocumentTest, KeepsDuplicateIdLookupStableAcrossReplacementReorderingAndAdoption) {
+TEST(DocumentTest, PreservesDuplicateIdLookup) {
     auto targetRootOwner = makeElement<HTMLPanelElement>();
     Document target(std::move(targetRootOwner));
     Element* targetRoot = target.documentElement();
@@ -870,7 +870,7 @@ TEST(DocumentTest, KeepsDuplicateIdLookupStableAcrossReplacementReorderingAndAdo
     EXPECT_NE(target.getElementById("duplicate"), third);
 }
 
-TEST(DocumentTest, RemovesDocumentElementThroughNodeMutation) {
+TEST(DocumentTest, RemovesDocumentElement) {
     auto documentElementOwner = makeElement<HTMLPanelElement>();
     Document document(std::move(documentElementOwner));
 
@@ -904,7 +904,7 @@ TEST(ElementTest, NormalizesAdjacentTextNodes) {
     EXPECT_EQ(runtimeChildren.begin()->asText()->data(), "beforeafter");
 }
 
-TEST(ElementVisitTest, SeparatesObjectMountTopologyStyleAndLayoutObservations) {
+TEST(ElementVisitTest, SeparatesMountObservations) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto childOwner = makeElement<HTMLPanelElement>();
     Element* child = childOwner.get();
@@ -949,7 +949,7 @@ TEST(ElementVisitTest, SeparatesObjectMountTopologyStyleAndLayoutObservations) {
     EXPECT_FALSE(dead.objectAlive());
 }
 
-TEST(ElementVisitTest, PaintOnlyStateChangeLeavesLayoutObservationCurrent) {
+TEST(ElementVisitTest, KeepsLayoutObservationCurrent) {
     StyleSheet styleSheet;
     ASSERT_TRUE(styleSheet.loadRadia("panel:hover { color: #ffffff; }").ok());
     EXPECT_FALSE(styleSheet.stateAffectsLayout(ElementState::Hovered));
@@ -990,7 +990,7 @@ TEST(ElementVisitTest, RejectsSiblingOrderChanges) {
     EXPECT_FALSE(observation.topologyValid());
 }
 
-TEST(ElementVisitTest, RejectsUnmountAndRemountAsNewMount) {
+TEST(ElementVisitTest, RejectsRemountAsNewMount) {
     Surface surface;
     auto rootOwner = makeElement<HTMLPanelElement>();
     Element* root = rootOwner.get();
@@ -1035,7 +1035,7 @@ TEST(ElementTest, PreservesWhitespaceOnlyTextNodes) {
     EXPECT_EQ(runtimeChildren.begin()->asText()->data(), " \t\n");
 }
 
-TEST(ElementTest, TextDataMutationUpdatesOwnerTextContent) {
+TEST(ElementTest, UpdatesOwnerText) {
     auto root = makeElementValue<Element>("p");
     Node* textNode = root.append(std::make_unique<Text>("before"));
     ASSERT_NE(textNode, nullptr);
@@ -1069,7 +1069,7 @@ TEST(ElementPaintTest, RecordsElementOwnPrimitives) {
     EXPECT_EQ(iconCommand->scale, 2.f);
 }
 
-TEST(ElementPaintTest, PaintsCompiledResourcesWithLocaleAndEffects) {
+TEST(ElementPaintTest, PaintsLocalizedResources) {
     System system;
     ResourceSnapshot resources;
     constexpr char kLocalization[] = "defaultLocale: en\n"
@@ -1125,7 +1125,7 @@ TEST(ElementPaintTest, PaintsCompiledResourcesWithLocaleAndEffects) {
     EXPECT_FALSE(surface->needsPaint());
 }
 
-TEST(ElementPaintTest, PaintsMixedTextAndElementsInSourceOrder) {
+TEST(ElementPaintTest, PaintsSourceOrder) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia("p { font-size: 10px; line-height: 10px; } b { font-weight: bold; }").ok());
 
@@ -1202,7 +1202,7 @@ TEST(TextLayoutTest, EllipsizesAccordingToTextDirection) {
     EXPECT_EQ(rtlEnded.commands()[2].textOrIconName, "ابتثجح");
 }
 
-TEST(TextLayoutTest, PreservesGraphemeBoundariesWhenEllipsizing) {
+TEST(TextLayoutTest, PreservesGraphemes) {
     const FixedTextMetrics metrics(.5f, .5f);
     ComputedStyle style;
     style.fontSize = 10.f;
@@ -1240,7 +1240,7 @@ TEST(TextLayoutTest, ClipsOverflowWithoutRewritingText) {
     EXPECT_EQ(recording.commands()[1].textOrIconName, "abc");
 }
 
-TEST(TextLayoutTest, WrapsAtWordAndUnicodeBoundaries) {
+TEST(TextLayoutTest, WrapsAtTextBoundaries) {
     const FixedTextMetrics metrics(.5f, .5f);
     ComputedStyle style;
     style.fontSize = 10.f;
@@ -1362,7 +1362,7 @@ TEST(TextLayoutTest, PreparesPaintLayoutBeforePainting) {
     EXPECT_EQ(metrics.measureCalls(), preparedMeasureCalls);
 }
 
-TEST(TextLayoutTest, RebuildsPreparedLayoutAfterContentChange) {
+TEST(TextLayoutTest, RebuildsAfterContentChange) {
     FixedTextMetrics metrics(1.f, 1.f);
     TextLayout layout("old");
     auto owner = makeElement<Element>("p");
@@ -1381,7 +1381,7 @@ TEST(TextLayoutTest, RebuildsPreparedLayoutAfterContentChange) {
     EXPECT_EQ(paintedText(recording), "new");
 }
 
-TEST(TextLayoutTest, RebuildsPreparedLayoutForDifferentPaintMetrics) {
+TEST(TextLayoutTest, RebuildsForPaintMetrics) {
     FixedTextMetrics narrowMetrics(.5f, .5f);
     FixedTextMetrics wideMetrics(1.f, 1.f);
     TextLayout layout("abc");
@@ -1402,7 +1402,7 @@ TEST(TextLayoutTest, RebuildsPreparedLayoutForDifferentPaintMetrics) {
     EXPECT_FLOAT_EQ(text->rect.w, 30.f);
 }
 
-TEST(TextLayoutTest, ProjectsCurrentPaintColorOntoMountedText) {
+TEST(TextLayoutTest, ProjectsPaintColor) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia("panel { display: block; } p { width: 40px; height: 10px; color: #ff0000; } p.accent { color: #0000ff; }").ok());
 
@@ -1434,7 +1434,7 @@ TEST(TextLayoutTest, ProjectsCurrentPaintColorOntoMountedText) {
     EXPECT_EQ(firstText->rect.h, secondText->rect.h);
 }
 
-TEST(TextLayoutTest, AppliesLetterAndWordSpacingToMeasuredText) {
+TEST(TextLayoutTest, AppliesTextSpacing) {
     const FixedTextMetrics metrics(.5f, .5f);
     ComputedStyle style;
     style.fontSize = 10.f;
@@ -1453,7 +1453,7 @@ TEST(TextLayoutTest, AppliesLetterAndWordSpacingToMeasuredText) {
     EXPECT_EQ(metrics.measureText("a\u2003b", style).x, 18.f);
 }
 
-TEST(SwitchElementTest, PointerActivationUpdatesStateAndThumb) {
+TEST(SwitchElementTest, UpdatesSwitchThumb) {
     StyleSheet styleSheet;
     constexpr char kSwitchLayout[] =
         "panel { display: flex; flex-direction: row; } "

@@ -91,7 +91,7 @@ function(_CONFIGURE_GTEST_TARGET target label)
   endforeach()
 
   gtest_discover_tests(${target}
-    DISCOVERY_MODE PRE_TEST
+    DISCOVERY_MODE POST_BUILD
     DISCOVERY_TIMEOUT 30
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
     PROPERTIES

@@ -17,7 +17,7 @@ using radia::viewer::ui::SettingsAdapter;
 using ResolutionStatus = SettingResolution::ResolutionStatus;
 }
 
-TEST(SettingsAdapterTest, SynchronizesBooleanBindingWithControlGroup) {
+TEST(SettingsAdapterTest, SyncsBooleanBinding) {
     LLControlGroup settings("ui-settings-adapter");
     settings.declareBOOL("adapter-enabled", false, "test setting");
     SettingsAdapter adapter(settings);

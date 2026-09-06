@@ -393,13 +393,13 @@ protected:
 };
 } // namespace
 
-TEST_F(ComponentManagerTest, RegistersDefinitionWithoutOpeningIt) {
+TEST_F(ComponentManagerTest, RegistersDefinition) {
     ASSERT_TRUE(registerOne());
     EXPECT_TRUE(liveFloaters().empty());
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, OpensIndependentInstancesForDifferentKeys) {
+TEST_F(ComponentManagerTest, SeparatesInstancesByKey) {
     ASSERT_TRUE(registerOne("profile"));
 
     const auto first = manager.open("profile", "alice");
@@ -415,7 +415,7 @@ TEST_F(ComponentManagerTest, OpensIndependentInstancesForDifferentKeys) {
     EXPECT_EQ(liveFloaters().size(), std::size_t{2});
 }
 
-TEST_F(ComponentManagerTest, PresentsExistingInstanceForARepeatedSingletonOpen) {
+TEST_F(ComponentManagerTest, ReusesSingletonInstance) {
     ASSERT_TRUE(registerOne());
 
     const auto first = manager.open("one");
@@ -428,7 +428,7 @@ TEST_F(ComponentManagerTest, PresentsExistingInstanceForARepeatedSingletonOpen) 
     EXPECT_EQ(host.presentations, 2);
 }
 
-TEST_F(ComponentManagerTest, OpensComponentAndDispatchesTypedEvents) {
+TEST_F(ComponentManagerTest, DispatchesComponentEvents) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -465,7 +465,7 @@ TEST_F(ComponentManagerTest, OpensComponentAndDispatchesTypedEvents) {
     EXPECT_EQ(status->textContent(), "Ready");
 }
 
-TEST_F(ComponentManagerTest, DoesNotActivateControllerBeforeHostMountReturns) {
+TEST_F(ComponentManagerTest, ActivatesAfterMount) {
     ASSERT_TRUE(registerOne());
     host.onMount = [](HTMLFloaterElement& root) {
         if (auto* press = dynamic_cast<HTMLButtonElement*>(findElement(root, "press"))) press->activate();
@@ -481,7 +481,7 @@ TEST_F(ComponentManagerTest, DoesNotActivateControllerBeforeHostMountReturns) {
     EXPECT_EQ(controllerState.pressCount, 1);
 }
 
-TEST_F(ComponentManagerTest, RollsBackHostMountWhenControllerActivationFails) {
+TEST_F(ComponentManagerTest, RollsBackFailedActivation) {
     ASSERT_TRUE(registerOne());
     host.onMount = [](HTMLFloaterElement& root) { root.replaceChildren(); };
 
@@ -493,7 +493,7 @@ TEST_F(ComponentManagerTest, RollsBackHostMountWhenControllerActivationFails) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, LeavesStateUntouchedWhenHostRejectsMount) {
+TEST_F(ComponentManagerTest, PreservesStateOnMountFailure) {
     ASSERT_TRUE(registerOne());
     host.rejectMount = true;
 
@@ -513,7 +513,7 @@ TEST_F(ComponentManagerTest, LeavesStateUntouchedWhenHostRejectsMount) {
     EXPECT_EQ(host.mountCalls, 2);
 }
 
-TEST_F(ComponentManagerTest, RetainsFailedOpenOwnersWhenHostRejectsRollback) {
+TEST_F(ComponentManagerTest, RetriesFailedOpenCleanup) {
     ASSERT_TRUE(registerOne());
     host.rejectUnmounts = true;
     host.onMount = [](HTMLFloaterElement& root) { root.replaceChildren(); };
@@ -530,7 +530,7 @@ TEST_F(ComponentManagerTest, RetainsFailedOpenOwnersWhenHostRejectsRollback) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, ClearsRetainedFailedOpenOwnersDuringTeardown) {
+TEST_F(ComponentManagerTest, ClearsFailedOpenState) {
     ASSERT_TRUE(registerOne());
     host.rejectUnmounts = true;
     host.onMount = [](HTMLFloaterElement& root) { root.replaceChildren(); };
@@ -547,7 +547,7 @@ TEST_F(ComponentManagerTest, ClearsRetainedFailedOpenOwnersDuringTeardown) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringMount) {
+TEST_F(ComponentManagerTest, RejectsReentrantMount) {
     ASSERT_TRUE(registerOne());
     host.onMount = [this](HTMLFloaterElement&) { EXPECT_FALSE(manager.open("one", "nested").ok()); };
 
@@ -559,7 +559,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringMount) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringControllerOpen) {
+TEST_F(ComponentManagerTest, RejectsReentrantOpen) {
     ASSERT_TRUE(registerOne());
     bool nestedOpenSucceeded = false;
     controllerState.openCallback = [this, &nestedOpenSucceeded] { nestedOpenSucceeded = manager.open("one", "nested").ok(); };
@@ -572,7 +572,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringControllerOpen) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringExistingControllerOpen) {
+TEST_F(ComponentManagerTest, RejectsReentrantReopen) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -592,7 +592,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringExistingControllerOpen) 
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringCloseNotification) {
+TEST_F(ComponentManagerTest, RejectsReentrantClose) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -607,7 +607,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringCloseNotification) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RetriesClosedComponentAfterHostUnmountRejection) {
+TEST_F(ComponentManagerTest, RetriesFailedUnmount) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -630,7 +630,7 @@ TEST_F(ComponentManagerTest, RetriesClosedComponentAfterHostUnmountRejection) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RepeatsCloseNotificationWhenControllerReopensRoot) {
+TEST_F(ComponentManagerTest, RepeatsCloseAfterReopen) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -651,7 +651,7 @@ TEST_F(ComponentManagerTest, RepeatsCloseNotificationWhenControllerReopensRoot) 
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringReloadNotification) {
+TEST_F(ComponentManagerTest, RejectsReentrantReload) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
     bool nestedOpenSucceeded = false;
@@ -664,7 +664,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringReloadNotification) {
     EXPECT_EQ(host.mounted.size(), std::size_t{1});
 }
 
-TEST_F(ComponentManagerTest, ReplacesOpenComponentWithoutChangingItsIdentity) {
+TEST_F(ComponentManagerTest, ReplacesComponent) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -703,7 +703,7 @@ TEST_F(ComponentManagerTest, ReplacesOpenComponentWithoutChangingItsIdentity) {
     EXPECT_EQ(controllerState.reloadFailureCount, 1);
 }
 
-TEST_F(ComponentManagerTest, RejectsCandidateClosedDuringControllerActivation) {
+TEST_F(ComponentManagerTest, RejectsClosedReplacement) {
     const auto closeState = std::make_shared<CandidateCloseState>();
     ASSERT_TRUE(manager.registerDefinition("closing", "one.html", [closeState](System& system, Document& document) {
         return std::make_unique<CloseOnValueStateController>(system, document, closeState);
@@ -729,7 +729,7 @@ TEST_F(ComponentManagerTest, RejectsCandidateClosedDuringControllerActivation) {
     EXPECT_NE(host.mounted.find(original), host.mounted.end());
 }
 
-TEST_F(ComponentManagerTest, PreparesReplacementAgainstTheCurrentGeneration) {
+TEST_F(ComponentManagerTest, UsesCurrentGeneration) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
 
@@ -747,7 +747,7 @@ TEST_F(ComponentManagerTest, PreparesReplacementAgainstTheCurrentGeneration) {
     EXPECT_EQ(*observedGeneration, currentGeneration);
 }
 
-TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterClosedInstanceReopens) {
+TEST_F(ComponentManagerTest, RejectsStaleReplacement) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -770,7 +770,7 @@ TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterClosedInstanceReopen
     EXPECT_EQ(liveFloaters().front(), original);
 }
 
-TEST_F(ComponentManagerTest, ReportsOpenComponentKeysAfterClosingAndReopeningAnInstance) {
+TEST_F(ComponentManagerTest, TracksReopenedInstance) {
     ASSERT_TRUE(registerOne("profile"));
     const auto first = manager.open("profile", "alice");
     const auto second = manager.open("profile", "bob");
@@ -793,7 +793,7 @@ TEST_F(ComponentManagerTest, ReportsOpenComponentKeysAfterClosingAndReopeningAnI
     EXPECT_EQ(openComponents().size(), std::size_t{2});
 }
 
-TEST_F(ComponentManagerTest, SnapshotsOpenComponentsBeforeCallbacksCanDestroyThem) {
+TEST_F(ComponentManagerTest, IteratesSafelyDuringClear) {
     ASSERT_TRUE(registerOne("profile"));
     ASSERT_TRUE(manager.open("profile", "alice").ok());
     ASSERT_TRUE(manager.open("profile", "bob").ok());
@@ -808,7 +808,7 @@ TEST_F(ComponentManagerTest, SnapshotsOpenComponentsBeforeCallbacksCanDestroyThe
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, KeepsRemainingBindingsLiveWhenAnOptionalElementDisappears) {
+TEST_F(ComponentManagerTest, KeepsBindingsAfterElementRemoval) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
     EXPECT_EQ(controllerState.availableElementCount, 1);
@@ -830,7 +830,7 @@ TEST_F(ComponentManagerTest, KeepsRemainingBindingsLiveWhenAnOptionalElementDisa
     EXPECT_EQ(controllerState.pressCount, 1);
 }
 
-TEST_F(ComponentManagerTest, LeavesCurrentComponentUntouchedWhenTheHostRejectsReplacement) {
+TEST_F(ComponentManagerTest, PreservesCurrentOnReplaceFailure) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -848,7 +848,7 @@ TEST_F(ComponentManagerTest, LeavesCurrentComponentUntouchedWhenTheHostRejectsRe
     EXPECT_EQ(controllerState.committedCount, 1);
 }
 
-TEST_F(ComponentManagerTest, RejectsNestedMutationDuringPublishedReplacement) {
+TEST_F(ComponentManagerTest, RejectsReentrantPublication) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -869,7 +869,7 @@ TEST_F(ComponentManagerTest, RejectsNestedMutationDuringPublishedReplacement) {
     EXPECT_EQ(system.generation(), 1ULL);
 }
 
-TEST_F(ComponentManagerTest, RejectsPublishedReplacementWhenCurrentClosesDuringPreparation) {
+TEST_F(ComponentManagerTest, RejectsCloseDuringPreparation) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -893,7 +893,7 @@ TEST_F(ComponentManagerTest, RejectsPublishedReplacementWhenCurrentClosesDuringP
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, DefersCloseObservedDuringPublicationUntilIdle) {
+TEST_F(ComponentManagerTest, DefersCloseUntilIdle) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -918,7 +918,7 @@ TEST_F(ComponentManagerTest, DefersCloseObservedDuringPublicationUntilIdle) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsMutationDuringPublicationLocaleNotification) {
+TEST_F(ComponentManagerTest, RejectsMutationDuringLocaleUpdate) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
 
@@ -949,7 +949,7 @@ TEST_F(ComponentManagerTest, RejectsMutationDuringPublicationLocaleNotification)
     EXPECT_TRUE(manager.open("one", "nested").ok());
 }
 
-TEST_F(ComponentManagerTest, RejectsMutationDuringBarePublicationNotification) {
+TEST_F(ComponentManagerTest, RejectsMutationDuringPublication) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
 
@@ -974,7 +974,7 @@ TEST_F(ComponentManagerTest, RejectsMutationDuringBarePublicationNotification) {
     EXPECT_TRUE(manager.open("one", "nested").ok());
 }
 
-TEST_F(ComponentManagerTest, RollsBackPublishedReplacementWhenControllerActivationFails) {
+TEST_F(ComponentManagerTest, RollsBackFailedReplacement) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1002,7 +1002,7 @@ TEST_F(ComponentManagerTest, RollsBackPublishedReplacementWhenControllerActivati
     EXPECT_EQ(controllerState.pressCount, 1);
 }
 
-TEST_F(ComponentManagerTest, EvictsClosedFloatersBeforeReplacement) {
+TEST_F(ComponentManagerTest, EvictsClosedFloaters) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1029,7 +1029,7 @@ TEST_F(ComponentManagerTest, EvictsClosedFloatersBeforeReplacement) {
     EXPECT_EQ(controllerState.openCount, openCount + 1);
 }
 
-TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterItsManagerIsDestroyed) {
+TEST_F(ComponentManagerTest, RejectsReplacementAfterDestruction) {
     Host temporaryHost;
     std::optional<ComponentManager::PreparedReplacement> orphan;
     {
@@ -1049,7 +1049,7 @@ TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterItsManagerIsDestroye
     EXPECT_FALSE(orphan->commit());
 }
 
-TEST_F(ComponentManagerTest, PreservesLiveGenerationWhenHostPublicationFails) {
+TEST_F(ComponentManagerTest, PreservesLiveGeneration) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1067,7 +1067,7 @@ TEST_F(ComponentManagerTest, PreservesLiveGenerationWhenHostPublicationFails) {
     EXPECT_EQ(controllerState.committedCount, 1);
 }
 
-TEST_F(ComponentManagerTest, LeavesEveryRootUntouchedWhenHostRejectsMultiRootPublication) {
+TEST_F(ComponentManagerTest, PreservesRootsOnPublicationFailure) {
     ASSERT_TRUE(registerOne("one"));
     ASSERT_TRUE(registerOne("two"));
     const auto first = manager.open("one", "first");
@@ -1092,7 +1092,7 @@ TEST_F(ComponentManagerTest, LeavesEveryRootUntouchedWhenHostRejectsMultiRootPub
     EXPECT_EQ(controllerState.committedCount, 2);
 }
 
-TEST_F(ComponentManagerTest, MountsControllerWithoutElementsOrEventHandlers) {
+TEST_F(ComponentManagerTest, MountsEmptyController) {
     ASSERT_TRUE(registerEmpty());
     const auto opened = manager.open("empty");
     ASSERT_TRUE(opened.ok());
@@ -1124,7 +1124,7 @@ TEST_F(ComponentManagerTest, OpensFloaterWithLocalizedContent) {
     EXPECT_EQ(controllerState.pressCount, 1);
 }
 
-TEST_F(ComponentManagerTest, RestoresLocalizedContentAfterReplacementRollback) {
+TEST_F(ComponentManagerTest, RestoresContentAfterRollback) {
     constexpr char kView[] = "<floater><head><title>localized</title><close></close></head>"
                              "<body><p id=\"status\"></p><p id=\"localized\">{{localized.title}}</p>"
                              "<button id=\"press\" onClick=\"press()\"></button></body></floater>";
@@ -1168,7 +1168,7 @@ TEST_F(ComponentManagerTest, RestoresLocalizedContentAfterReplacementRollback) {
     EXPECT_EQ(restoredText->textContent(), "Old");
 }
 
-TEST_F(ComponentManagerTest, RejectsEventHandlerRegisteredForAnotherControllerType) {
+TEST_F(ComponentManagerTest, RejectsMismatchedHandler) {
     ASSERT_TRUE(registerMismatched());
     const auto opened = manager.open("mismatched");
 
@@ -1178,7 +1178,7 @@ TEST_F(ComponentManagerTest, RejectsEventHandlerRegisteredForAnotherControllerTy
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsAmbiguousControllerElementId) {
+TEST_F(ComponentManagerTest, RejectsAmbiguousElement) {
     ASSERT_TRUE(registerDuplicate());
     const auto opened = manager.open("duplicate");
 
@@ -1188,7 +1188,7 @@ TEST_F(ComponentManagerTest, RejectsAmbiguousControllerElementId) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsPanelRootForFloaterHost) {
+TEST_F(ComponentManagerTest, RejectsPanelRoot) {
     ASSERT_TRUE(registerPanel());
     const auto opened = manager.open("panel");
 
@@ -1198,7 +1198,7 @@ TEST_F(ComponentManagerTest, RejectsPanelRootForFloaterHost) {
     EXPECT_TRUE(host.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, SynchronizesSettingBindingWithMountedSwitch) {
+TEST_F(ComponentManagerTest, SyncsMountedSwitch) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1212,7 +1212,7 @@ TEST_F(ComponentManagerTest, SynchronizesSettingBindingWithMountedSwitch) {
     EXPECT_TRUE(resolver.binding->state().value);
 }
 
-TEST_F(ComponentManagerTest, KeepsIndependentBoundSwitchesTogglableThroughReplacement) {
+TEST_F(ComponentManagerTest, PreservesIndependentSwitches) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1266,7 +1266,7 @@ TEST_F(ComponentManagerTest, KeepsIndependentBoundSwitchesTogglableThroughReplac
     EXPECT_TRUE(resolver.secondBinding->state().value);
 }
 
-TEST_F(ComponentManagerTest, ClearsAndUnmountsComponentsForAnAccountReset) {
+TEST_F(ComponentManagerTest, ClearsComponentsOnAccountReset) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
 
@@ -1276,7 +1276,7 @@ TEST_F(ComponentManagerTest, ClearsAndUnmountsComponentsForAnAccountReset) {
     EXPECT_EQ(controllerState.closeCount, 1);
 }
 
-TEST_F(ComponentManagerTest, UsesHostTeardownWhenManagerIsDestroyed) {
+TEST_F(ComponentManagerTest, CleansUpOnDestruction) {
     TestFloaterHost temporaryHost;
     {
         ComponentManager temporaryManager{system, temporaryHost, resolver};
@@ -1290,7 +1290,7 @@ TEST_F(ComponentManagerTest, UsesHostTeardownWhenManagerIsDestroyed) {
     EXPECT_TRUE(temporaryHost.mounted.empty());
 }
 
-TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterAccountReset) {
+TEST_F(ComponentManagerTest, RejectsReplacementAfterReset) {
     ASSERT_TRUE(registerOne());
     ASSERT_TRUE(manager.open("one").ok());
     const SkinGenerationPrepareResult generation = prepareGeneration();
@@ -1302,7 +1302,7 @@ TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterAccountReset) {
     EXPECT_FALSE(prepared.replacement.commit());
 }
 
-TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterIdleEviction) {
+TEST_F(ComponentManagerTest, RejectsReplacementAfterEviction) {
     ASSERT_TRUE(registerOne());
     const auto opened = manager.open("one");
     ASSERT_TRUE(opened.ok());
@@ -1316,7 +1316,7 @@ TEST_F(ComponentManagerTest, RejectsPreparedReplacementAfterIdleEviction) {
     EXPECT_FALSE(prepared.replacement.commit());
 }
 
-TEST_F(ComponentManagerTest, LeavesAllComponentsUntouchedWhenClearPreparationFails) {
+TEST_F(ComponentManagerTest, PreservesComponentsOnClearFailure) {
     ASSERT_TRUE(registerOne("one"));
     ASSERT_TRUE(registerOne("two"));
     const auto first = manager.open("one");

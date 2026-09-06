@@ -181,7 +181,7 @@ protected:
     Runtime runtime;
 };
 
-TEST_F(RuntimeTest, IgnoresInputBeforeInitialization) {
+TEST_F(RuntimeTest, IgnoresEarlyInput) {
     EXPECT_FALSE(runtime.pointerMove(makePointerEvent(10.f, 20.f)).handled);
     EXPECT_FALSE(runtime.pointerDown(makePointerEvent(10.f, 20.f, PointerButton::Left)).handled);
     EXPECT_FALSE(runtime.pointerUp(makePointerEvent(10.f, 20.f, PointerButton::Left)).handled);
@@ -196,7 +196,7 @@ TEST_F(RuntimeTest, IgnoresInputBeforeInitialization) {
     runtime.pointerCaptureLost();
 }
 
-TEST_F(RuntimeTest, LifecycleOperationsAreSafeBeforeInitialization) {
+TEST_F(RuntimeTest, HandlesEarlyLifecycleCalls) {
     runtime.setVisibility(false);
     runtime.frame(800, 600);
     runtime.idle();
@@ -227,7 +227,7 @@ TEST_F(RuntimeTest, ReportsItsLifecycleState) {
     EXPECT_EQ(runtime.lifecycleState(), RuntimeState::Stopped);
 }
 
-TEST_F(RuntimeTest, RetriesAFailedShutdownWithoutDroppingOwners) {
+TEST_F(RuntimeTest, RetriesFailedShutdown) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
@@ -257,7 +257,7 @@ TEST_F(RuntimeTest, ShutdownPreventsReinitialization) {
     EXPECT_EQ(captures, 0);
 }
 
-TEST_F(RuntimeTest, InitializesFromInjectedSkinAndShutsDownCleanly) {
+TEST_F(RuntimeTest, InitializesWithInjectedSkin) {
     ASSERT_TRUE(runtime.initialize());
     EXPECT_GT(captures, 0);
     ASSERT_TRUE(registerTestFloater());
@@ -286,7 +286,7 @@ TEST_F(RuntimeTest, ForwardsPaintScaleToSurface) {
     EXPECT_FLOAT_EQ(frame->target.pixelOrigin.y, 18.f);
 }
 
-TEST_F(RuntimeTest, RoutesAttachedInputToBoundComponent) {
+TEST_F(RuntimeTest, RoutesAttachedInput) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
@@ -315,7 +315,7 @@ TEST_F(RuntimeTest, RoutesAttachedInputToBoundComponent) {
     EXPECT_FALSE(runtime.keyUp(makeKeyEvent(kKeyTab, kModifierControl)).handled);
 }
 
-TEST_F(RuntimeTest, KeepsCursorOwnedBetweenPointerSamples) {
+TEST_F(RuntimeTest, RetainsCursor) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
@@ -357,7 +357,7 @@ TEST_F(RuntimeTest, KeepsCursorOwnedBetweenPointerSamples) {
     EXPECT_FALSE(runtime.pointerCursor().has_value());
 }
 
-TEST_F(RuntimeTest, LeavesUnclaimedInputForViewerFallback) {
+TEST_F(RuntimeTest, PreservesUnclaimedInput) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     ASSERT_NE(runtime.openFloater("runtimeTest"), nullptr);
@@ -434,7 +434,7 @@ TEST_F(RuntimeTest, PersistsMinimizedFloaterMove) {
     EXPECT_FLOAT_EQ(static_cast<float>(savedPlacement["size"][1].asReal()), floater->expandedRect().h);
 }
 
-TEST_F(RuntimeTest, CapturedPointerContinuesOutsideViewportUntilRelease) {
+TEST_F(RuntimeTest, CapturesPointerOutsideViewport) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
@@ -459,7 +459,7 @@ TEST_F(RuntimeTest, CapturedPointerContinuesOutsideViewportUntilRelease) {
     EXPECT_FALSE(floater->dragging());
 }
 
-TEST_F(RuntimeTest, DispatchesOneRuntimeMovePerDrainedNativeSample) {
+TEST_F(RuntimeTest, DispatchesOneMovePerSample) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");
@@ -560,7 +560,7 @@ TEST_F(RuntimeTest, PointerCaptureLossCancelsHeadDrag) {
     EXPECT_FALSE(floater->dragging());
 }
 
-TEST_F(RuntimeTest, ShutdownIsIdempotentAndStopsFurtherInput) {
+TEST_F(RuntimeTest, ShutdownStopsInput) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     ASSERT_NE(runtime.openFloater("runtimeTest"), nullptr);
@@ -574,7 +574,7 @@ TEST_F(RuntimeTest, ShutdownIsIdempotentAndStopsFurtherInput) {
     EXPECT_FALSE(runtime.keyDown(makeKeyEvent(kKeyReturn)).handled);
 }
 
-TEST_F(RuntimeTest, ShutdownStopsFrameAndIdleWork) {
+TEST_F(RuntimeTest, ShutdownStopsBackgroundWork) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     ASSERT_NE(runtime.openFloater("runtimeTest"), nullptr);
@@ -602,7 +602,7 @@ TEST_F(RuntimeTest, ShutdownStopsFrameAndIdleWork) {
     EXPECT_EQ(controllerState.lifecycleEvents.size(), lifecycleEventsAfterShutdown);
 }
 
-TEST_F(RuntimeTest, VisibilityAndAccountTransitionsClearInteraction) {
+TEST_F(RuntimeTest, ClearsInteractionOnContextChange) {
     ASSERT_TRUE(runtime.initialize());
     ASSERT_TRUE(registerTestFloater());
     HTMLFloaterElement* floater = runtime.openFloater("runtimeTest");

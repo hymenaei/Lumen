@@ -40,7 +40,7 @@ void appendFloaterStructure(HTMLFloaterElement& floater) {
 }
 } // namespace
 
-TEST(FloaterHostTest, ReplacesMountedFloaterThroughSurfaceSeam) {
+TEST(FloaterHostTest, ReplacesMountedFloater) {
     auto currentDocument = std::make_unique<Document>(makeElement<HTMLFloaterElement>());
     HTMLFloaterElement* current = dynamic_cast<HTMLFloaterElement*>(currentDocument->documentElement());
     ASSERT_NE(current, nullptr);
@@ -79,7 +79,7 @@ TEST(FloaterHostTest, ReplacesMountedFloaterThroughSurfaceSeam) {
     EXPECT_FLOAT_EQ(replacement->rect().h, userRect.h);
 }
 
-TEST(FloaterHostTest, RejectsClearWhenAnyRootIsNotMounted) {
+TEST(FloaterHostTest, RejectsClearWithUnmountedRoot) {
     auto currentDocument = std::make_unique<Document>(makeElement<HTMLFloaterElement>());
     HTMLFloaterElement* current = dynamic_cast<HTMLFloaterElement*>(currentDocument->documentElement());
     ASSERT_NE(current, nullptr);
@@ -104,7 +104,7 @@ TEST(FloaterHostTest, RejectsClearWhenAnyRootIsNotMounted) {
     EXPECT_FALSE(current->closed());
 }
 
-TEST(FloaterHostTest, RejectsInvalidMountWithoutChangingTheSurface) {
+TEST(FloaterHostTest, PreservesSurfaceOnMountFailure) {
     auto document = std::make_unique<Document>(makeElement<Element>("panel"));
     Element* root = document->documentElement();
     ASSERT_NE(root, nullptr);

@@ -20,14 +20,14 @@ SkinSnapshotResult validSnapshot() {
 }
 } // namespace
 
-TEST(SkinPreparationTest, CompilesCapturedSnapshotIntoGeneration) {
+TEST(SkinPreparationTest, CompilesSnapshot) {
     const auto result = prepareSkinGeneration(validSnapshot());
 
     ASSERT_TRUE(result.ok());
     ASSERT_NE(result.generation, nullptr);
 }
 
-TEST(SkinPreparationTest, PreservesCaptureDiagnosticsAndSkipsCompilationAfterError) {
+TEST(SkinPreparationTest, PreservesDiagnosticsOnError) {
     SkinSnapshotResult captured = validSnapshot();
     captured.error("skin.test.rejected", "The test capture was rejected.");
 

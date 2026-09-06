@@ -14,7 +14,7 @@
 namespace {
 using ::testing::Message;
 
-TEST(PaintProtocolTest, MatchesPaintProtocolWithShaderConstants) {
+TEST(PaintProtocolTest, MatchesShaderProtocol) {
     const std::filesystem::path uiSourceRoot = std::filesystem::path(__FILE__).parent_path().parent_path();
     const std::filesystem::path newviewSourceRoot = uiSourceRoot.parent_path() / "newview";
     std::ifstream vertexFile(newviewSourceRoot / "app_settings/shaders/class1/interface/uiV.glsl");

@@ -91,7 +91,7 @@ float resolvedLabelWidth(const System& system) {
 }
 } // namespace
 
-TEST(NativeAppearanceTest, BaseOwnsScrollbarDefaultsAndStateStyling) {
+TEST(NativeAppearanceTest, AppliesScrollbarDefaults) {
     NativeAppearanceBase appearance;
     const NativeScrollbarMetrics metrics = appearance.scrollbarMetrics(ScrollbarMode::Classic);
     EXPECT_FLOAT_EQ(metrics.thickness, kExpectedClassicScrollbarMetrics.thickness);
@@ -111,7 +111,7 @@ TEST(NativeAppearanceTest, BaseOwnsScrollbarDefaultsAndStateStyling) {
     EXPECT_GT(style.thumb.r, kMinimumHoveredThumbRed);
 }
 
-TEST(NativeAppearanceTest, ButtonPaintDispatchUsesNativeAppearanceForAutoMode) {
+TEST(NativeAppearanceTest, UsesNativeButtonAppearance) {
     auto button = makeElementValue<HTMLButtonElement>();
     RecordingPaintContext recording;
     ComputedStyle style;
@@ -129,7 +129,7 @@ TEST(NativeAppearanceTest, ButtonPaintDispatchUsesNativeAppearanceForAutoMode) {
     EXPECT_FLOAT_EQ(command->nativeButton->bounds.h, button.rect().h);
 }
 
-TEST(NativeAppearanceTest, ButtonPaintDispatchKeepsUnstyledModeOnCssPath) {
+TEST(NativeAppearanceTest, KeepsCssAppearanceUnstyled) {
     auto button = makeElementValue<HTMLButtonElement>();
     RecordingPaintContext recording;
     ComputedStyle style;
@@ -217,7 +217,7 @@ private:
     mutable bool mCallbackInvoked = false;
 };
 
-TEST(SystemTest, PublishesLocalizationStylesIconsAndElementResources) {
+TEST(SystemTest, PublishesSystemResources) {
     constexpr char kPublishedStyles[] = "label { width: 40px; }";
     constexpr char kViewHTML[] = "<p id=\"message\">{{message}}</p>";
     constexpr char kSearchIcon[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0 L10 10\"/></svg>";
@@ -252,7 +252,7 @@ TEST(SystemTest, PublishesLocalizationStylesIconsAndElementResources) {
     EXPECT_FLOAT_EQ(styledPtr->rect().w, 40.f);
 }
 
-TEST(SystemTest, NativeAppearanceMetricsDriveLayoutAndPaintRevision) {
+TEST(SystemTest, UsesAppearanceMetrics) {
     constexpr char kScrollStyles[] = "#viewport { display: block; overflow: scroll; scrollbar-mode: classic; }";
     const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(skinSnapshot({}, kScrollStyles));
     ASSERT_TRUE(prepared.ok());
@@ -298,7 +298,7 @@ TEST(SystemTest, NativeAppearanceMetricsDriveLayoutAndPaintRevision) {
     EXPECT_EQ(updatedScrollbar->scrollbar->appearanceRevision, 43u);
 }
 
-TEST(SystemTest, NativeAppearanceMetricsFollowAuthoredScrollbarMode) {
+TEST(SystemTest, FollowsScrollbarMode) {
     constexpr char kScrollStyles[] = "#classic { display: block; overflow: scroll; scrollbar-mode: classic; } "
                                      "#overlay { display: block; overflow: scroll; }";
     const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(skinSnapshot({}, kScrollStyles));
@@ -354,7 +354,7 @@ TEST(SystemTest, NativeAppearanceMetricsFollowAuthoredScrollbarMode) {
     EXPECT_FLOAT_EQ(overlayScrollbar->scrollbar->metrics.thickness, 8.f);
 }
 
-TEST(SystemTest, RejectsInvalidCandidatesWithoutReplacingLiveGeneration) {
+TEST(SystemTest, PreservesLiveGenerationOnFailure) {
     constexpr char kLiveStyles[] = "label { width: 40px; }";
     constexpr char kInvalidLocalization[] = "defaultLocale: [";
     constexpr char kInvalidStyles[] = "label { display: sideways; width: 90px; }";
@@ -387,7 +387,7 @@ TEST(SystemTest, RejectsEmptyReferencedIcons) {
     EXPECT_EQ(rejected.errors.front().code, "svg.empty");
 }
 
-TEST(SystemTest, RejectsUnknownIconsInLayoutResources) {
+TEST(SystemTest, RejectsUnknownLayoutIcons) {
     constexpr char kIconStyles[] = "icon { size: 16px; }";
     constexpr char kKnownIconHTML[] = "<icon src=\"actions/search\"></icon>";
     constexpr char kMissingIconHTML[] = "<icon src=\"actions/missing\"></icon>";
@@ -405,7 +405,7 @@ TEST(SystemTest, RejectsUnknownIconsInLayoutResources) {
     EXPECT_EQ(rejected.errors.front().code, "layout.icon.missing");
 }
 
-TEST(SystemTest, RejectsSnapshotsWithoutLocalization) {
+TEST(SystemTest, RejectsMissingLocalization) {
     constexpr char kStylesWithoutLocalization[] = "label { width: 40px; }";
 
     ResourceSnapshot snapshot;
@@ -434,7 +434,7 @@ TEST(SystemTest, RejectsMalformedIcons) {
     EXPECT_EQ(rejected.errors.front().source, "skin/views/resources/icons/search.svg");
 }
 
-TEST(SystemTest, PreservesPhysicalProvenanceForUnsupportedAssets) {
+TEST(SystemTest, PreservesAssetProvenance) {
     ResourceSnapshot snapshot = skinSnapshot();
     snapshot.add("resources/not-an-icon.txt", "not an icon", "skin/views/resources/not-an-icon.txt");
 
@@ -446,7 +446,7 @@ TEST(SystemTest, PreservesPhysicalProvenanceForUnsupportedAssets) {
     EXPECT_EQ(rejected.errors.front().source, "skin/views/resources/not-an-icon.txt");
 }
 
-TEST(SystemTest, PreservesPhysicalProvenanceForUnsupportedLayouts) {
+TEST(SystemTest, PreservesLayoutProvenance) {
     ResourceSnapshot snapshot = skinSnapshot();
     snapshot.add("broken.txt", "<panel></panel>", "skin/ui/broken.txt");
 
@@ -458,7 +458,7 @@ TEST(SystemTest, PreservesPhysicalProvenanceForUnsupportedLayouts) {
     EXPECT_EQ(rejected.errors.front().source, "skin/ui/broken.txt");
 }
 
-TEST(SystemTest, UpdatesMountedElementsWhenLocaleChanges) {
+TEST(SystemTest, UpdatesElementsOnLocaleChange) {
     constexpr char kMultilingualLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {message: Ready}}, "
                                                  "pt: {strings: {message: Pronto}}, "
                                                  "ar: {strings: {message: جاهز}}}\n";
@@ -484,7 +484,7 @@ TEST(SystemTest, UpdatesMountedElementsWhenLocaleChanges) {
     EXPECT_EQ(probePtr->notifications(), 2);
 }
 
-TEST(SystemTest, SurfaceLocaleSnapshotSkipsDestroyedAndDefersNewRegistrations) {
+TEST(SystemTest, KeepsLocaleUpdateStable) {
     constexpr char kLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {}}, pt: {strings: {}}}\n";
 
     System system;
@@ -526,7 +526,7 @@ TEST(SystemTest, SurfaceLocaleSnapshotSkipsDestroyedAndDefersNewRegistrations) {
     EXPECT_EQ(addedCounts->locale, 1);
 }
 
-TEST(SystemTest, SurfaceKeybindingSnapshotSkipsDestroyedAndDefersNewRegistrations) {
+TEST(SystemTest, KeepsKeybindingUpdateStable) {
     System system;
     std::unique_ptr<Surface> observer = system.createSurface(fixedTextMetrics());
     std::unique_ptr<Surface> destroyed = system.createSurface(fixedTextMetrics());
@@ -559,12 +559,11 @@ TEST(SystemTest, SurfaceKeybindingSnapshotSkipsDestroyedAndDefersNewRegistration
     EXPECT_EQ(addedCounts->keybindings, 1);
 }
 
-TEST(SystemTest, SurfaceAppearanceSnapshotSkipsDestroyedAndDefersNewRegistrations) {
+TEST(SystemTest, KeepsAppearanceUpdateStable) {
     System system;
     std::unique_ptr<Surface> observer = system.createSurface(fixedTextMetrics());
     std::unique_ptr<Surface> destroyed = system.createSurface(fixedTextMetrics());
     std::unique_ptr<Surface> added;
-    // NativeAppearance::revision is the existing callback seam inside nativeAppearanceChanged.
     auto appearance = std::make_shared<ReentrantNativeAppearance>([&] {
         destroyed.reset();
         if (!added) {
@@ -582,7 +581,7 @@ TEST(SystemTest, SurfaceAppearanceSnapshotSkipsDestroyedAndDefersNewRegistration
     EXPECT_FALSE(added->needsPaint());
 }
 
-TEST(SystemTest, ResolvesDirectionSelectorsWhenLocaleChanges) {
+TEST(SystemTest, ResolvesDirectionOnLocaleChange) {
     constexpr char kDirectionStyles[] = "input[switch] { appearance: base; display: inline-grid; width: 44px; height: 20px; } "
                                         "input[switch]::slider-track { grid-area: 1 / 1; width: 100%; } "
                                         "input[switch]::slider-thumb { grid-area: 1 / 1; width: 24px; height: 24px; margin: -2px -1px; } "
@@ -616,7 +615,7 @@ TEST(SystemTest, ResolvesDirectionSelectorsWhenLocaleChanges) {
     EXPECT_FLOAT_EQ(controlPtr->sliderThumb()->rect().x, 31.f);
 }
 
-TEST(SystemTest, SeparatesPlainTextAndLocalizedContent) {
+TEST(SystemTest, SeparatesLocalizedContent) {
     constexpr char kLocalization[] = "defaultLocale: en\n"
                                      "locales: {en: {strings: {plain: 'hello plain', hello: 'hello <b>world</b>'}}}\n";
 
@@ -677,7 +676,7 @@ TEST(SystemTest, SeparatesPlainTextAndLocalizedContent) {
     EXPECT_EQ(rawContentPtr->textContent(), "hello world");
 }
 
-TEST(SystemTest, RebuildsTranslatedBlockAndControlHTML) {
+TEST(SystemTest, RebuildsTranslatedMarkup) {
     constexpr char kLocalization[] = "defaultLocale: en\n"
                                      "locales:\n"
                                      "  en:\n"
@@ -725,7 +724,7 @@ TEST(SystemTest, RebuildsTranslatedBlockAndControlHTML) {
     EXPECT_TRUE(portugueseInput->switchMode());
 }
 
-TEST(SystemTest, PreservesLocaleAcrossPublicationAndFallsBackWhenRemoved) {
+TEST(SystemTest, PreservesLocaleOnRemoval) {
     constexpr char kMultilingualLocalization[] = "defaultLocale: en\nlocales: {en: {strings: {message: Ready}}, "
                                                  "pt: {strings: {message: Pronto}}, "
                                                  "ar: {strings: {message: جاهز}}}\n";
@@ -748,7 +747,7 @@ TEST(SystemTest, PreservesLocaleAcrossPublicationAndFallsBackWhenRemoved) {
     EXPECT_EQ(system.resolveText("message"), "Ready again");
 }
 
-TEST(SystemTest, PublishesGenerationUpdatesToExistingSurfacesAndNewTrees) {
+TEST(SystemTest, UpdatesSurfacesOnPublication) {
     constexpr char kLiveStyles[] = "label { width: 40px; }";
     constexpr char kCandidateStyles[] = "label { width: 90px; }";
     constexpr char kViewHTML[] = "<p>{{message}}</p>";
@@ -793,7 +792,7 @@ TEST(SystemTest, PublishesGenerationUpdatesToExistingSurfacesAndNewTrees) {
     EXPECT_EQ(liveText->textContent(), "New");
 }
 
-TEST(SystemTest, RejectsInvalidUnmountedLayoutResources) {
+TEST(SystemTest, RejectsInvalidUnmountedResources) {
     constexpr char kStyles[] = "label { width: 90px; }";
     constexpr char kValidHTML[] = "<p>Ready</p>";
     constexpr char kUnsupportedHTML[] = "<unsupported></unsupported>";
@@ -809,7 +808,7 @@ TEST(SystemTest, RejectsInvalidUnmountedLayoutResources) {
     EXPECT_EQ(rejected.errors.front().code, "layout.element.unknown");
 }
 
-TEST(SystemTest, RefreshesKbdPresentationWhenKeybindingsChange) {
+TEST(SystemTest, RefreshesKeyPresentation) {
     constexpr char kKeybindingLocalization[] = "defaultLocale: en\nlocales: {en: {strings: "
                                                "{fly.label: 'Fly <kbd shortcut=\"toggle-fly\"></kbd>'}}}\n";
     constexpr char kViewHTML[] = "<p>{{fly.label}}</p>";
@@ -845,7 +844,7 @@ TEST(SystemTest, RefreshesKbdPresentationWhenKeybindingsChange) {
     EXPECT_GT(text->desiredSize().x, initialWidth);
 }
 
-TEST(SystemTest, RollsBackPublicationWhenCommitRejectsCandidate) {
+TEST(SystemTest, RollsBackRejectedPublication) {
     System system;
     const SkinGenerationPrepareResult live = SkinCompiler().prepare(skinSnapshot(singleStringLocalization("message", "Old")));
     ASSERT_TRUE(live.ok());
@@ -875,7 +874,7 @@ TEST(SystemTest, RollsBackPublicationWhenCommitRejectsCandidate) {
     EXPECT_EQ(system.resolveText("message"), "Old");
 }
 
-TEST(SystemTest, RejectsNestedPublicationMutation) {
+TEST(SystemTest, RejectsReentrantPublication) {
     System system;
     const SkinGenerationPrepareResult live = SkinCompiler().prepare(skinSnapshot(singleStringLocalization("message", "Old")));
     ASSERT_TRUE(live.ok());

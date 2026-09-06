@@ -80,7 +80,7 @@ constexpr char kColorTokenStyles[] = ":root { --accent: hsl(120 100% 50%); --ink
                                      "label { color: #00ff00ff; font-size: 29px; }";
 } // namespace
 
-TEST(StyleSheetTest, ResolvesColorTokensAndInheritance) {
+TEST(StyleSheetTest, ResolvesInheritedColors) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia(kColorTokenStyles).ok());
     const ComputedStyle button = stylesheet.resolve("button", "", {}, 0);
@@ -136,7 +136,7 @@ TEST(StyleSheetTest, StartsWithoutImplicitCoreRules) {
     EXPECT_EQ(paragraph.fontWeight, static_cast<U16>(400));
 }
 
-TEST(StyleSheetTest, PreservesLiveStylesheetAfterInvalidColorCandidate) {
+TEST(StyleSheetTest, PreservesStylesheetOnInvalidColor) {
     constexpr char kInvalidColorStyles[] = "input { background-color: ##invalid; }";
 
     StyleSheet stylesheet;
@@ -150,7 +150,7 @@ TEST(StyleSheetTest, PreservesLiveStylesheetAfterInvalidColorCandidate) {
     EXPECT_NEAR(stylesheet.resolve("button", "", {}, 0).backgroundColor.g, 1.f, 1.0e-4f);
 }
 
-TEST(StyleSheetTest, ParsesMarginPaddingAndGapShorthands) {
+TEST(StyleSheetTest, ParsesBoxShorthands) {
     constexpr char kBoxSpacingStyles[] = "panel { margin: 1px auto 3px -4px; padding: 5px 6px; gap: 7px; }";
 
     StyleSheet stylesheet;
@@ -166,7 +166,7 @@ TEST(StyleSheetTest, ParsesMarginPaddingAndGapShorthands) {
     EXPECT_FALSE(style.gap.isAuto());
 }
 
-TEST(StyleSheetTest, MatchesFocusStatesWithoutConfusingFocusVisible) {
+TEST(StyleSheetTest, DistinguishesFocusStates) {
     constexpr char kFocusStateStyles[] = "button { border-width: 1px; &:focus { opacity: .8; } "
                                          "&:focus-visible { border-width: 3px; } }";
 
@@ -180,7 +180,7 @@ TEST(StyleSheetTest, MatchesFocusStatesWithoutConfusingFocusVisible) {
     EXPECT_EQ(stylesheet.resolve("button", "", {}, static_cast<uint8_t>(ElementState::FocusVisible)).borderWidth.top, 1.f);
 }
 
-TEST(StyleSheetTest, AcceptsElementlessPseudoClassSelectors) {
+TEST(StyleSheetTest, AcceptsElementlessPseudos) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia(":focus-visible { border-width: 2px; }").ok());
 
@@ -189,7 +189,7 @@ TEST(StyleSheetTest, AcceptsElementlessPseudoClassSelectors) {
     EXPECT_EQ(stylesheet.resolve("label", "", {}, static_cast<uint8_t>(ElementState::Focused)).borderWidth.top, 0.f);
 }
 
-TEST(StyleSheetTest, MatchesDirectionAlongsideCheckedState) {
+TEST(StyleSheetTest, MatchesDirectionState) {
     constexpr char kDirectionStyles[] = "input { &:dir(rtl):checked::slider-thumb { translate: -22px 0; } "
                                         "&:dir(ltr):checked::slider-thumb { translate: 22px 0; } }";
 
@@ -204,7 +204,7 @@ TEST(StyleSheetTest, MatchesDirectionAlongsideCheckedState) {
     EXPECT_EQ(stylesheet.resolvePseudoElement(input, "slider-thumb", LayoutDirection::RightToLeft).translate.x, 0.f);
 }
 
-TEST(StyleSheetTest, PreservesLiveStylesheetAfterUnknownProperty) {
+TEST(StyleSheetTest, PreservesStylesheetOnUnknown) {
     constexpr char kInitialStyles[] = "button { width: 12px; }";
     constexpr char kInvalidStyles[] = "button { width: 99px; unknown-property: 1; }";
 
@@ -242,7 +242,7 @@ TEST(StyleSheetTest, RejectsReferencesToMissingTokens) {
     EXPECT_EQ(result.errors.front().source, "missing-token.css");
 }
 
-TEST(StyleSheetTest, MatchesChildSelectorsUsingOwnerClassAndState) {
+TEST(StyleSheetTest, MatchesChildSelectors) {
     constexpr char kChildOwnerStyles[] = "button.primary > icon { width: 10px; } "
                                          "button.primary:hover > icon { width: 18px; }";
 
@@ -257,7 +257,7 @@ TEST(StyleSheetTest, MatchesChildSelectorsUsingOwnerClassAndState) {
     EXPECT_EQ(computedStyle(stylesheet, icon).width.pixels(), 18.f);
 }
 
-TEST(StyleSheetTest, MatchesInteractivePartStateIndependentlyFromOwner) {
+TEST(StyleSheetTest, SeparatesPartState) {
     constexpr char kInteractivePartStyles[] = "floater > head > close { width: 10px; } floater > head > close:hover { width: 18px; }";
 
     StyleSheet stylesheet;
@@ -273,7 +273,7 @@ TEST(StyleSheetTest, MatchesInteractivePartStateIndependentlyFromOwner) {
     EXPECT_EQ(computedStyle(stylesheet, *closeButton).width.pixels(), 18.f);
 }
 
-TEST(StyleSheetTest, ParsesCursorValuesAndPreservesPriorValueAfterFailure) {
+TEST(StyleSheetTest, PreservesCursorOnFailure) {
     constexpr char kCursorStyles[] = "button { cursor: pointer; } #horizontal { cursor: e-resize; } "
                                      "#diagonal { cursor: sw-resize; } #grab { cursor: grab; } "
                                      "#grabbing { cursor: grabbing; }";
@@ -293,7 +293,7 @@ TEST(StyleSheetTest, ParsesCursorValuesAndPreservesPriorValueAfterFailure) {
     EXPECT_EQ(stylesheet.resolve("button", "", {}, 0).cursor, CursorStyle::Pointer);
 }
 
-TEST(StyleSheetTest, CompilesTargetSpecificRulesWithoutWarnings) {
+TEST(StyleSheetTest, CompilesTargetRules) {
     constexpr char kRelevantAndIrrelevantStyles[] =
         "input { padding: 4px; "
         "&:checked::slider-thumb { order: 1; } } "
@@ -331,7 +331,7 @@ TEST(StyleSheetTest, SelectsRadioInputsByNameAttribute) {
     EXPECT_EQ(computedStyle(stylesheet, input).width.pixels(), 40.f);
 }
 
-TEST(StyleSheetTest, ClearsNamePresenceWhenRadioNameIsRemoved) {
+TEST(StyleSheetTest, ClearsRemovedRadioName) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia("input { width: 10px; } input[name] { width: 20px; } input[name=choice] { width: 40px; }").ok());
 
@@ -355,7 +355,7 @@ TEST(StyleSheetTest, SelectsIndeterminateInputs) {
     EXPECT_FLOAT_EQ(computedStyle(stylesheet, input).opacity, .5f);
 }
 
-TEST(StyleSheetTest, RejectsInvalidSelectorsAndPropertyValues) {
+TEST(StyleSheetTest, RejectsInvalidRules) {
     struct InvalidRuleCase {
         const char* source;
         const char* diagnostic;
@@ -412,7 +412,7 @@ TEST(StyleSheetTest, RejectsNestedPseudoElements) {
     EXPECT_EQ(result.errors.front().code, "stylesheet.selector.pseudo_element_invalid");
 }
 
-TEST(StyleSheetTest, InheritsOnlyInheritablePropertiesAndAllowsOverrides) {
+TEST(StyleSheetTest, InheritsAllowedProperties) {
     constexpr char kInheritedStyles[] = "panel { font-family: sans; font-size: 19px; font-weight: bold; "
                                         "font-style: italic; line-height: 23px; color: #204060ff; "
                                         "accent-color: #102030ff; "
@@ -509,7 +509,7 @@ TEST(StyleSheetTest, ResolvesCSSWideInheritanceKeywords) {
     EXPECT_EQ(computedStyle(stylesheet, *lateValuePtr).width.pixels(), 9.f);
 }
 
-TEST(StyleSheetTest, ParsesOverflowShorthandAndRejectsUnsupportedValues) {
+TEST(StyleSheetTest, ParsesOverflowShorthand) {
     constexpr char kOverflowStyles[] = "panel { overflow: scroll auto; } "
                                        "#single { overflow: auto; } "
                                        "#longhand { overflow-x: auto; overflow-y: scroll; } "
@@ -545,7 +545,7 @@ TEST(StyleSheetTest, ParsesOverflowShorthandAndRejectsUnsupportedValues) {
     EXPECT_EQ(invalid.errors.front().code, "stylesheet.property.value_invalid");
 }
 
-TEST(StyleSheetTest, ParsesEllipticalBorderRadiusShorthand) {
+TEST(StyleSheetTest, ParsesBorderRadius) {
     constexpr char kStyles[] = "panel { border-radius: 10px 100px / 120px; } "
                                "#expanded { border-radius: 10px 20px 30px / 40px 50px 60px 70px; } "
                                "#mirrored { border-radius: 10%; }";
@@ -580,7 +580,7 @@ TEST(StyleSheetTest, ParsesEllipticalBorderRadiusShorthand) {
     EXPECT_NEAR(mirrored.borderRadius.bottomLeft.vertical.percent, .1f, 1.0e-6f);
 }
 
-TEST(StyleSheetTest, RejectsMalformedEllipticalBorderRadiusShorthand) {
+TEST(StyleSheetTest, RejectsMalformedBorderRadius) {
     constexpr char kInvalidStyles[] = "panel { border-radius: 1px /; }";
     constexpr char kMultipleSlashStyles[] = "panel { border-radius: 1px / 2px / 3px; }";
     constexpr char kTooManyValuesStyles[] = "panel { border-radius: 1px 2px 3px 4px 5px; }";
@@ -645,7 +645,7 @@ TEST(StyleSheetTest, ParsesAccentColorValues) {
     EXPECT_EQ(stylesheet.resolve("panel", "automatic", {}, 0).accentColor.kind, AccentColor::Kind::Auto);
 }
 
-TEST(StyleSheetTest, InheritsColorSchemeAndAllowsOverride) {
+TEST(StyleSheetTest, OverridesColorScheme) {
     constexpr char kColorSchemeStyles[] = "panel { color-scheme: light; } input.dark { color-scheme: dark; }";
 
     StyleSheet stylesheet;
@@ -666,7 +666,7 @@ TEST(StyleSheetTest, InheritsColorSchemeAndAllowsOverride) {
     EXPECT_EQ(computedStyle(stylesheet, *overriddenInputPtr).colorScheme, ColorScheme::Dark);
 }
 
-TEST(StyleSheetTest, ResolvesLightDarkAfterColorSchemeInheritance) {
+TEST(StyleSheetTest, ResolvesInheritedSchemeColors) {
     constexpr char kLightDarkStyles[] = ":root { color-scheme: light; } panel.dark { color-scheme: dark; } "
                                         "label { color: light-dark(#101010, #f0f0f0); }";
 
@@ -688,7 +688,7 @@ TEST(StyleSheetTest, ResolvesLightDarkAfterColorSchemeInheritance) {
     EXPECT_NEAR(computedStyle(stylesheet, *darkLabelPtr).color.r, 240.f / 255.f, 1.0e-4f);
 }
 
-TEST(StyleSheetTest, ProjectsMinimizedFloaterStateIntoHeadStyles) {
+TEST(StyleSheetTest, ProjectsMinimizedState) {
     constexpr char kMinimizedFloaterStyles[] = "floater > head { border-width: 0px 0px 1px; } "
                                                "floater:minimized > head { border-width: 0px; }";
 
@@ -708,7 +708,7 @@ TEST(StyleSheetTest, ProjectsMinimizedFloaterStateIntoHeadStyles) {
     EXPECT_EQ(computedStyle(stylesheet, *head).borderWidth.bottom, 1.f);
 }
 
-TEST(StyleSheetTest, ParsesTypedLengthsAndAutomaticDimensions) {
+TEST(StyleSheetTest, ParsesTypedDimensions) {
     constexpr char kTypedLengthStyles[] = "panel { width: 40px; min-width: 20px; left: -8px; line-height: 18px; }";
     constexpr char kAutoDimensionStyles[] = "panel { width: 40px; height: 20px; width: auto; height: auto; } "
                                             "button { size: auto; } icon { size: auto 16px; }";
@@ -743,7 +743,7 @@ TEST(StyleSheetTest, ParsesTypedLengthsAndAutomaticDimensions) {
     EXPECT_EQ(automaticGap.gap.fixedPixels(), 0.f);
 }
 
-TEST(StyleSheetTest, MatchesStructuralSelectorsAndCombinators) {
+TEST(StyleSheetTest, MatchesStructuralSelectors) {
     constexpr char kStructuralStyles[] = "* { opacity: .8; } panel.root > label { width: 10px; } "
                                          "panel.root label { height: 11px; } panel.root { "
                                          "> label.direct { min-width: 20%; } "
@@ -786,7 +786,7 @@ TEST(StyleSheetTest, MatchesStructuralSelectorsAndCombinators) {
     EXPECT_NEAR(nestedStyle.bottom->percent, .1f, 1.0e-4f);
 }
 
-TEST(StyleSheetTest, ParsesGradientsEffectsShadowsAndOutlines) {
+TEST(StyleSheetTest, ParsesVisualEffects) {
     constexpr char kBoxEffectStyles[] = "panel { background-color: linear-gradient(to right, #ff0000ff, "
                                         "rgb(0, 255, 0, 50%) 75%, #0000ffff); "
                                         "box-shadow: 1px 2px #11223344, 3px 4px 5px 6px "
@@ -915,7 +915,7 @@ TEST(StyleSheetTest, RejectsInvalidBoxEffects) {
     ASSERT_TRUE(stylesheet.loadRadia(kLargeBlurStyles, "large-effect.css").ok());
 }
 
-TEST(StyleSheetTest, ParsesMinSizeShorthandAndRejectsInvalidValues) {
+TEST(StyleSheetTest, RejectsInvalidMinSize) {
     constexpr char kMinSizeStyles[] = "panel.one { min-size: 24px; } panel.two { min-size: 30% 80px; } "
                                       "panel.longhand-after { min-size: 10px 20px; min-width: 40px; } "
                                       "panel.shorthand-after { min-height: 5px; min-size: 12px 18px; }";
@@ -969,7 +969,7 @@ TEST(StyleSheetTest, ParsesMinSizeShorthandAndRejectsInvalidValues) {
     EXPECT_EQ(preservedStyle.minWidth->pixels, 24.f);
 }
 
-TEST(StyleSheetTest, CopiesAndMovesStylesheetsWithoutSharingState) {
+TEST(StyleSheetTest, CopiesStylesheetState) {
     constexpr char kOriginalStyles[] = "panel { width: 10px; }";
     constexpr char kReplacementStyles[] = "panel { width: 20px; }";
 
@@ -1016,7 +1016,7 @@ TEST(StyleSheetTest, MergesStyleLayersTransactionally) {
     EXPECT_EQ(stylesheet.resolve("panel", "", {}, 0).width.pixels(), 20.f);
 }
 
-TEST(StyleSheetTest, SkinOriginOverridesMoreSpecificDefaultRule) {
+TEST(StyleSheetTest, OverridesDefaultRule) {
     const std::vector<StyleLayer> layers{
         {StyleOrigin::Skin, {"skin.css", "panel { width: 20px; }"}},
         {StyleOrigin::Default, {"defaults.css", "panel.primary { width: 10px; }"}},
@@ -1027,7 +1027,7 @@ TEST(StyleSheetTest, SkinOriginOverridesMoreSpecificDefaultRule) {
     EXPECT_EQ(stylesheet.resolve("panel", "", {"primary"}, 0).width.pixels(), 20.f);
 }
 
-TEST(StyleSheetTest, RestrictsInternalAlignmentToDefaultStylesheet) {
+TEST(StyleSheetTest, RestrictsInternalAlignment) {
     StyleSheet stylesheet;
     const auto skinOnly = stylesheet.loadRadiaLayers({
         {StyleOrigin::Skin, {"skin.css", "button { -internal-align-content-block: center; }"}},
@@ -1047,7 +1047,7 @@ TEST(StyleSheetTest, RestrictsInternalAlignmentToDefaultStylesheet) {
     EXPECT_TRUE(stylesheet.resolve("button", "", {}, 0).alignContentBlockCenter);
 }
 
-TEST(StyleSheetTest, ResolvesRecursiveImportsAndRecordsDependencies) {
+TEST(StyleSheetTest, ResolvesRecursiveImports) {
     constexpr char kEntrypointStyles[] = "@import \"components/panel.css\";\n"
                                          ":root { --panel-width: 12px; }\n"
                                          "panel { width: var(--panel-width); }\n"
@@ -1076,7 +1076,7 @@ TEST(StyleSheetTest, ResolvesRecursiveImportsAndRecordsDependencies) {
     EXPECT_TRUE(dependencies.at("theme/components/panel.css").contains("theme/foundation/sizes.css"));
 }
 
-TEST(StyleSheetTest, RejectsImportFailuresAndPreservesLiveStylesheet) {
+TEST(StyleSheetTest, PreservesStylesheetOnImportFailure) {
     constexpr char kBaselineStyles[] = "panel { width: 44px; }";
     constexpr char kMissingImport[] = "\n@import \"missing.css\";";
     constexpr char kCycleImport[] = "@import \"cycle.css\";";
@@ -1133,7 +1133,7 @@ TEST(StyleSheetTest, RejectsImportFailuresAndPreservesLiveStylesheet) {
     EXPECT_EQ(stylesheet.resolve("panel", "", {}, 0).width.pixels(), 44.f);
 }
 
-TEST(StyleSheetTest, NormalizesSelectorNamesAndUsesCSSIdentifierSyntax) {
+TEST(StyleSheetTest, NormalizesSelectorNames) {
     constexpr char kMixedCaseSelector[] = "BuTtOn { width: 23px; }";
     constexpr char kUnderscoreSelector[] = "button#bad_id { width: 29px; }";
     constexpr char kEscapedIdSelector[] = "button#bad\\.id { width: 31px; }";
@@ -1193,7 +1193,7 @@ TEST(StyleSheetTest, ResolvesNestedInlineKbdSelectors) {
     EXPECT_EQ(rejectedPseudoElement.errors.front().code, "stylesheet.selector.pseudo_element_unknown");
 }
 
-TEST(StyleSheetTest, PreservesSourceOrderAcrossNestedRules) {
+TEST(StyleSheetTest, PreservesNestedRuleOrder) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia("button { color: #ff0000ff; & { color: #00ff00ff; } color: #0000ffff; }").ok());
 
@@ -1225,7 +1225,7 @@ TEST(StyleSheetTest, ReportsEachSharedImportFailure) {
     EXPECT_EQ(result.errors[1].source, "theme/shared.css");
 }
 
-TEST(StyleSheetTest, MarksStateBorderChangesAsLayoutAffecting) {
+TEST(StyleSheetTest, MarksBorderStateLayoutAffecting) {
     constexpr char kStateBorderStyles[] = "fieldset { border: 1px #ffffff; } "
                                           "fieldset:hover { border: 4px #ffffff; }";
 
@@ -1234,7 +1234,7 @@ TEST(StyleSheetTest, MarksStateBorderChangesAsLayoutAffecting) {
     EXPECT_TRUE(stylesheet.stateAffectsLayout(ElementState::Hovered));
 }
 
-TEST(StyleSheetTest, MarksStateAppearanceChangesAsLayoutAffecting) {
+TEST(StyleSheetTest, MarksAppearanceStateLayout) {
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia("input:hover { appearance: none; }").ok());
     EXPECT_TRUE(stylesheet.stateAffectsLayout(ElementState::Hovered));
