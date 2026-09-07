@@ -5,7 +5,6 @@
 
 #include "linden_common.h"
 #include "skin/generation.h"
-#include "html/icon.h"
 #include "resource/elementdefinition.h"
 #include "resource/resourceprovider.h"
 #include "skin/generationinternal.h"
@@ -43,22 +42,15 @@ std::shared_ptr<const SkinGeneration> SkinGeneration::empty() {
     StyleSheet styleSheet;
     (void)styleSheet.loadRadia(std::string(defaultStylesheetSource()), std::string(kDefaultStylesheetResourceId));
     return std::shared_ptr<const SkinGeneration>(new SkinGeneration(
-        std::make_unique<Impl>(ResourceSnapshot(), LocalizationCatalog(), std::move(styleSheet), std::unordered_map<std::string, SvgIcon>())));
+        std::make_unique<Impl>(ResourceSnapshot(), LocalizationCatalog(), std::move(styleSheet), std::unordered_map<std::string, SvgImage>())));
 }
 
 ResourceBuildResult SkinGeneration::buildElementTree(const ResourceId& id, const std::string& locale) const {
     const std::string selectedLocale = containsLocale(locale) ? locale : defaultLocale();
     const ResourceBuildContext context(mImpl->localization, selectedLocale);
     ResourceBuildResult result = mImpl->resourceCompiler.buildElementTreeFromResource(id, &context);
-    if (result.document && result.document->documentElement()) validateIconReferences(*result.document->documentElement(), result);
     if (result.hasErrors()) result.document.reset();
     return result;
-}
-
-void SkinGeneration::validateIconReferences(Element& element, ResourceBuildResult& result) const {
-    if (const auto* icon = dynamic_cast<const HTMLIconElement*>(&element); icon && !icon->name().empty() && !this->icon(icon->name()))
-        result.error("layout.icon.missing", "Unknown icon resource: " + icon->name() + ".");
-    for (Element* child : element.children()) validateIconReferences(*child, result);
 }
 
 DiagnosticResult SkinGeneration::validateElementDefaults(const std::string& elementName) const {
@@ -66,8 +58,21 @@ DiagnosticResult SkinGeneration::validateElementDefaults(const std::string& elem
     return mImpl->resourceCompiler.validateElementDefaults(elementName, &context);
 }
 
-const SvgIcon* SkinGeneration::icon(const std::string& name) const {
-    const auto found = mImpl->icons.find(name);
-    return found == mImpl->icons.end() ? nullptr : &found->second;
+const SvgImage* SkinGeneration::resourceSvg(std::string_view reference) const {
+    const ResourceId resolved = detail::resolveSkinResource(*mImpl->resources, reference);
+    const auto found = mImpl->svgResources.find(resolved.value());
+    return found == mImpl->svgResources.end() ? nullptr : &found->second;
+}
+
+const RasterImage* SkinGeneration::resourceRaster(std::string_view reference) const {
+    const ResourceId resolved = detail::resolveSkinResource(*mImpl->resources, reference);
+    const auto found = mImpl->rasterResources.find(resolved.value());
+    return found == mImpl->rasterResources.end() ? nullptr : &found->second;
+}
+
+const std::string* SkinGeneration::resourceData(std::string_view reference) const {
+    const ResourceId resolved = detail::resolveSkinResource(*mImpl->resources, reference);
+    const auto found = mImpl->resources->resources().find(resolved);
+    return found == mImpl->resources->resources().end() ? nullptr : &found->second.content;
 }
 } // namespace radia::ui

@@ -30,7 +30,6 @@ constexpr TagInfo kTagInfo[] = {
     {HTMLTag::Head, kHeadTag.localName, false},
     {HTMLTag::Header, kHeaderTag.localName, false},
     {HTMLTag::I, kITag.localName, false},
-    {HTMLTag::Icon, kIconTag.localName, false},
     {HTMLTag::Ins, kInsTag.localName, false},
     {HTMLTag::Kbd, kKbdTag.localName, false},
     {HTMLTag::Label, kLabelTag.localName, false},

@@ -19,7 +19,6 @@
 #include "html/button.h"
 #include "html/element.h"
 #include "html/elementnames.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -46,7 +45,6 @@ using radia::ui::fixedTextMetrics;
 using radia::ui::Fragment;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
@@ -57,6 +55,7 @@ using radia::ui::isVoidHTMLTag;
 using radia::ui::kClickEvent;
 using radia::ui::LayoutDirection;
 using radia::ui::Length;
+using radia::ui::lookupHTMLTag;
 using radia::ui::Node;
 using radia::ui::NodePtr;
 using radia::ui::NodeType;
@@ -214,7 +213,7 @@ namespace {
 std::string paintedText(const RecordingPaintContext& recording) {
     std::string text;
     for (const PaintCommand& command : recording.commands())
-        if (command.kind == PaintCommandKind::Text) text += command.textOrIconName;
+        if (command.kind == PaintCommandKind::Text) text += command.text;
     return text;
 }
 } // namespace
@@ -651,6 +650,11 @@ TEST(HTMLNamesTest, KeepsVoidnessInTheHTMLVocabulary) {
     EXPECT_FALSE(isVoidHTMLTag(HTMLTag::Div));
 }
 
+TEST(HTMLNamesTest, UsesIForCSSBackedIcons) {
+    EXPECT_EQ(lookupHTMLTag("i"), HTMLTag::I);
+    EXPECT_EQ(lookupHTMLTag("icon"), HTMLTag::Unknown);
+}
+
 TEST(ElementTest, ExposesConstChildren) {
     auto root = makeElementValue<HTMLPanelElement>();
     auto childOwner = makeElement<HTMLLabelElement>("child");
@@ -1058,15 +1062,11 @@ TEST(ElementPaintTest, RecordsElementOwnPrimitives) {
     EXPECT_EQ(recording.count(PaintCommandKind::Box), 1U);
     EXPECT_EQ(recording.count(PaintCommandKind::Text), 0U);
 
-    auto icon = makeElementValue<HTMLIconElement>("search");
+    auto icon = makeElementValue<Element>("i");
+    icon.addClass("i-search");
     icon.setRect({4.f, 5.f, 16.f, 16.f});
     icon.paint(recording, style, 2.f);
     EXPECT_EQ(recording.count(PaintCommandKind::Box), 2U);
-    EXPECT_EQ(recording.count(PaintCommandKind::Icon), 1U);
-    const PaintCommand* iconCommand = recording.last(PaintCommandKind::Icon);
-    ASSERT_NE(iconCommand, nullptr);
-    EXPECT_EQ(iconCommand->textOrIconName, "search");
-    EXPECT_EQ(iconCommand->scale, 2.f);
 }
 
 TEST(ElementPaintTest, PaintsLocalizedResources) {
@@ -1076,7 +1076,7 @@ TEST(ElementPaintTest, PaintsLocalizedResources) {
                                      "locales: {en: {strings: {}}, "
                                      "ar: {strings: {}}}\n";
     constexpr char kStyles[] = "panel { opacity: .5; effect: background-blur(3px), layer-blur(to right, 0px 0%, 4px 100%); } "
-                               "label { opacity: .5; text-align: start; } icon { size: 16px; }";
+                               "label { opacity: .5; text-align: start; } i { size: 16px; }";
     constexpr char kSearchIconSvg[] = "<svg viewBox=\"0 0 24 24\">"
                                       "<path d=\"M2 2 L22 22\"/></svg>";
     resources.add("localization.yaml", kLocalization);
@@ -1094,7 +1094,8 @@ TEST(ElementPaintTest, PaintsLocalizedResources) {
     auto label = makeElement<HTMLLabelElement>("hello");
     label->setRect({0.f, 20.f, 30.f, 10.f});
     panel->append(std::move(label));
-    auto icon = makeElement<HTMLIconElement>("search");
+    auto icon = makeElement<Element>("i");
+    icon->addClass("i-search");
     icon->setRect({0.f, 0.f, 16.f, 16.f});
     panel->append(std::move(icon));
     surface->mount(std::move(panel));
@@ -1106,22 +1107,20 @@ TEST(ElementPaintTest, PaintsLocalizedResources) {
     EXPECT_EQ(recording.count(PaintCommandKind::BeginEffects), 1U);
     EXPECT_EQ(recording.count(PaintCommandKind::EndEffects), 1U);
     EXPECT_EQ(recording.count(PaintCommandKind::Text), 1U);
-    EXPECT_EQ(recording.count(PaintCommandKind::Icon), 1U);
     const PaintCommand* textCommand = recording.last(PaintCommandKind::Text);
-    const PaintCommand* iconCommand = recording.last(PaintCommandKind::Icon);
+    const PaintCommand* iconBox = recording.last(PaintCommandKind::Box);
     const PaintCommand* effectCommand = recording.last(PaintCommandKind::BeginEffects);
     ASSERT_NE(textCommand, nullptr);
-    ASSERT_NE(iconCommand, nullptr);
+    ASSERT_NE(iconBox, nullptr);
     ASSERT_NE(effectCommand, nullptr);
     EXPECT_EQ(effectCommand->scale, 2.f);
     EXPECT_EQ(effectCommand->style.effects.size(), 2U);
-    EXPECT_EQ(iconCommand->textOrIconName, "search");
     EXPECT_EQ(textCommand->style.color.a, .25f);
     EXPECT_EQ(textCommand->style.textAlign, TextAlign::Left);
     EXPECT_EQ(textCommand->rect.x, -8.f);
     EXPECT_EQ(recording.commands().front().kind, PaintCommandKind::BeginFrame);
     EXPECT_EQ(recording.commands().back().kind, PaintCommandKind::EndFrame);
-    EXPECT_LT(textCommand, iconCommand);
+    EXPECT_LT(textCommand, iconBox);
     EXPECT_FALSE(surface->needsPaint());
 }
 
@@ -1145,7 +1144,7 @@ TEST(ElementPaintTest, PaintsSourceOrder) {
 
     std::vector<std::string> painted;
     for (const PaintCommand& command : recording.commands())
-        if (command.kind == PaintCommandKind::Text) painted.push_back(command.textOrIconName);
+        if (command.kind == PaintCommandKind::Text) painted.push_back(command.text);
     const std::vector<std::string> expectedPainted{"before ", "bold", " after"};
     EXPECT_EQ(painted, expectedPainted);
 }
@@ -1170,7 +1169,7 @@ TEST(TextLayoutTest, PreservesFittingShapedLines) {
 
     ASSERT_EQ(recording.count(PaintCommandKind::Text), 1U);
     ASSERT_GE(recording.commands().size(), 2U);
-    EXPECT_EQ(recording.commands()[1].textOrIconName, "Radia UI Demo");
+    EXPECT_EQ(recording.commands()[1].text, "Radia UI Demo");
 }
 
 TEST(TextLayoutTest, EllipsizesAccordingToTextDirection) {
@@ -1198,8 +1197,8 @@ TEST(TextLayoutTest, EllipsizesAccordingToTextDirection) {
     RecordingPaintContext rtlEnded(metrics);
     rtlInventory.paint(rtlEnded, style, 1.f);
     ASSERT_GE(rtlEnded.commands().size(), 3U);
-    EXPECT_EQ(rtlEnded.commands()[1].textOrIconName, "\xE2\x80\xA6");
-    EXPECT_EQ(rtlEnded.commands()[2].textOrIconName, "ابتثجح");
+    EXPECT_EQ(rtlEnded.commands()[1].text, "\xE2\x80\xA6");
+    EXPECT_EQ(rtlEnded.commands()[2].text, "ابتثجح");
 }
 
 TEST(TextLayoutTest, PreservesGraphemes) {
@@ -1237,7 +1236,7 @@ TEST(TextLayoutTest, ClipsOverflowWithoutRewritingText) {
     clipped.paint(recording, style, 1.f);
 
     ASSERT_GE(recording.commands().size(), 2U);
-    EXPECT_EQ(recording.commands()[1].textOrIconName, "abc");
+    EXPECT_EQ(recording.commands()[1].text, "abc");
 }
 
 TEST(TextLayoutTest, WrapsAtTextBoundaries) {
@@ -1253,8 +1252,8 @@ TEST(TextLayoutTest, WrapsAtTextBoundaries) {
     wrapped.paint(wrapping, style, 1.f);
     ASSERT_EQ(wrapping.count(PaintCommandKind::Text), 2U);
     ASSERT_GE(wrapping.commands().size(), 3U);
-    EXPECT_EQ(wrapping.commands()[1].textOrIconName, "alpha");
-    EXPECT_EQ(wrapping.commands()[2].textOrIconName, "beta");
+    EXPECT_EQ(wrapping.commands()[1].text, "alpha");
+    EXPECT_EQ(wrapping.commands()[2].text, "beta");
 
     TextLayoutTestElement zeroWidthWrapped("alpha beta");
     zeroWidthWrapped.setRect({0.f, 0.f, 0.f, 20.f});
@@ -1268,8 +1267,8 @@ TEST(TextLayoutTest, WrapsAtTextBoundaries) {
     multiword.paint(shapedWrapping, style, 1.f);
     ASSERT_EQ(shapedWrapping.count(PaintCommandKind::Text), 2U);
     ASSERT_GE(shapedWrapping.commands().size(), 3U);
-    EXPECT_EQ(shapedWrapping.commands()[1].textOrIconName, "alpha beta");
-    EXPECT_EQ(shapedWrapping.commands()[2].textOrIconName, "gamma");
+    EXPECT_EQ(shapedWrapping.commands()[1].text, "alpha beta");
+    EXPECT_EQ(shapedWrapping.commands()[2].text, "gamma");
 
     TextLayoutTestElement cjk("你好世界");
     cjk.setRect({0.f, 0.f, 10.f, 20.f});

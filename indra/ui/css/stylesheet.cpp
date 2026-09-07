@@ -31,7 +31,7 @@ void resolveLightDarkColors(ComputedStyle& style) {
     resolveLightDarkColor(style.backgroundColor, style.backgroundColorLightDark, style.colorScheme);
     resolveLightDarkColor(style.borderColor, style.borderColorLightDark, style.colorScheme);
     resolveLightDarkColor(style.color, style.colorLightDark, style.colorScheme);
-    resolveLightDarkColor(style.iconStrokeColor, style.iconStrokeColorLightDark, style.colorScheme);
+    resolveLightDarkColor(style.strokeColor, style.strokeColorLightDark, style.colorScheme);
     if (style.accentColor.lightDarkColor) style.accentColor.color = resolveLightDarkColor(*style.accentColor.lightDarkColor, style.colorScheme);
     if (style.scrollbarColor.thumbLightDarkColor)
         style.scrollbarColor.thumb = resolveLightDarkColor(*style.scrollbarColor.thumbLightDarkColor, style.colorScheme);
@@ -39,6 +39,14 @@ void resolveLightDarkColors(ComputedStyle& style) {
         style.scrollbarColor.track = resolveLightDarkColor(*style.scrollbarColor.trackLightDarkColor, style.colorScheme);
     if (style.backgroundGradient)
         for (GradientStop& stop : style.backgroundGradient->stops) resolveLightDarkColor(stop.color, stop.lightDarkColor, style.colorScheme);
+    if (style.strokeGradient)
+        for (GradientStop& stop : style.strokeGradient->stops) resolveLightDarkColor(stop.color, stop.lightDarkColor, style.colorScheme);
+    for (BackgroundLayer& layer : style.backgroundLayers)
+        if (layer.gradient)
+            for (GradientStop& stop : layer.gradient->stops) resolveLightDarkColor(stop.color, stop.lightDarkColor, style.colorScheme);
+    for (MaskLayer& layer : style.maskLayers)
+        if (layer.image.gradient)
+            for (GradientStop& stop : layer.image.gradient->stops) resolveLightDarkColor(stop.color, stop.lightDarkColor, style.colorScheme);
     if (style.borderGradient)
         for (GradientStop& stop : style.borderGradient->stops) resolveLightDarkColor(stop.color, stop.lightDarkColor, style.colorScheme);
     for (BoxShadow& shadow : style.shadows) resolveLightDarkColor(shadow.color, shadow.lightDarkColor, style.colorScheme);
@@ -55,6 +63,11 @@ void resolveCurrentColors(ComputedStyle& style) {
         style.borderColor = style.color;
         style.borderColorLightDark.reset();
         style.borderGradient.reset();
+    }
+    if (style.strokeColorCurrent) {
+        style.strokeColor = style.color;
+        style.strokeColorLightDark.reset();
+        style.strokeGradient.reset();
     }
 }
 
@@ -76,7 +89,7 @@ void applyOpacity(ComputedStyle& style, float inheritedOpacity) {
     style.backgroundColor.a *= opacity;
     style.borderColor.a *= opacity;
     style.color.a *= opacity;
-    style.iconStrokeColor.a *= opacity;
+    style.strokeColor.a *= opacity;
     style.outline.color.a *= opacity;
     if (!style.scrollbarColor.automatic) {
         style.scrollbarColor.thumb.a *= opacity;
@@ -85,6 +98,11 @@ void applyOpacity(ComputedStyle& style, float inheritedOpacity) {
     for (BoxShadow& shadow : style.shadows) shadow.color.a *= opacity;
     if (style.backgroundGradient)
         for (GradientStop& stop : style.backgroundGradient->stops) stop.color.a *= opacity;
+    if (style.strokeGradient)
+        for (GradientStop& stop : style.strokeGradient->stops) stop.color.a *= opacity;
+    for (BackgroundLayer& layer : style.backgroundLayers)
+        if (layer.gradient)
+            for (GradientStop& stop : layer.gradient->stops) stop.color.a *= opacity;
     if (style.borderGradient)
         for (GradientStop& stop : style.borderGradient->stops) stop.color.a *= opacity;
     style.opacity = opacity;
@@ -132,6 +150,10 @@ const StyleRuleSet* StyleSheet::ruleSetIdentity() const {
 
 const StyleSheet::DependencyMap& StyleSheet::dependencies() const {
     return mImpl->ruleSet.dependencies();
+}
+
+const std::vector<StyleResourceReference>& StyleSheet::resourceReferences() const {
+    return mImpl->ruleSet.resourceReferences();
 }
 
 bool StyleSheet::stateAffectsLayout(ElementState state) const {

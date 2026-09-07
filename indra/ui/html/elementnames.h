@@ -27,7 +27,6 @@ enum class HTMLTag : std::uint8_t {
     Head,
     Header,
     I,
-    Icon,
     Ins,
     Kbd,
     Label,
@@ -67,7 +66,6 @@ inline constexpr HTMLTagName kFloaterTag{"floater"};
 inline constexpr HTMLTagName kHeadTag{"head"};
 inline constexpr HTMLTagName kHeaderTag{"header"};
 inline constexpr HTMLTagName kITag{"i"};
-inline constexpr HTMLTagName kIconTag{"icon"};
 inline constexpr HTMLTagName kInsTag{"ins"};
 inline constexpr HTMLTagName kKbdTag{"kbd"};
 inline constexpr HTMLTagName kLabelTag{"label"};

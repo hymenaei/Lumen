@@ -32,6 +32,7 @@
 namespace {
 using radia::ui::AAIntent;
 using radia::ui::AuthoredEventCall;
+using radia::ui::BackgroundAttachment;
 using radia::ui::Binder;
 using radia::ui::Binding;
 using radia::ui::ClipAxes;
@@ -202,7 +203,6 @@ public:
     void paintText(const std::string& text, const Rect& rect, const ComputedStyle&) override {
         mTexts.push_back({text, {rect.x + mTranslation.x, rect.y + mTranslation.y, rect.w, rect.h}});
     }
-    void paintIcon(const std::string&, const Rect&, const ComputedStyle&, float) override {}
 
     const TextRecord* find(const std::string& value) const {
         const auto found = std::find_if(mTexts.begin(), mTexts.end(), [&value](const TextRecord& text) { return text.value == value; });
@@ -326,6 +326,49 @@ TEST(SurfaceTest, PaintsBodyBackground) {
             && candidate.style.backgroundColor.b == 0.f;
     });
     ASSERT_NE(command, recording.commands().end());
+}
+
+TEST(SurfaceTest, SuppliesBackgroundAttachmentContext) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet
+                    .loadRadia("panel { overflow: auto; background-image: url(one.svg), url(two.svg); "
+                               "background-attachment: local, fixed; } .fixed { background-image: url(child.svg); background-attachment: fixed; }")
+                    .ok());
+
+    Surface surface(stylesheet);
+    surface.setViewport(100.f, 100.f);
+    auto panel = makeElement<HTMLPanelElement>();
+    HTMLPanelElement* panelPtr = panel.get();
+    panel->setRect({0.f, 0.f, 100.f, 100.f});
+    auto content = makeElement<HTMLPanelElement>();
+    content->addClass("fixed");
+    content->setRect({0.f, 0.f, 100.f, 200.f});
+    panel->append(std::move(content));
+    surface.mount(std::move(panel));
+    surface.updateLayout();
+    panelPtr->scrollTo(0.f, 25.f);
+
+    RecordingPaintContext recording;
+    surface.paint(recording);
+
+    const auto panelBox = std::find_if(recording.commands().begin(), recording.commands().end(), [](const PaintCommand& command) {
+        return command.kind == PaintCommandKind::Box && command.style.backgroundLayers.size() == 2U;
+    });
+    ASSERT_NE(panelBox, recording.commands().end());
+    ASSERT_TRUE(panelBox->backgroundPaintContext.has_value());
+    EXPECT_FLOAT_EQ(panelBox->backgroundPaintContext->localScrollTranslation.y, 25.f);
+    EXPECT_FLOAT_EQ(panelBox->backgroundPaintContext->viewport.w, 100.f);
+    ASSERT_TRUE(panelBox->backgroundPaintContext->scrollport.has_value());
+    EXPECT_FLOAT_EQ(panelBox->backgroundPaintContext->scrollport->h, 85.f);
+
+    const auto childBox = std::find_if(recording.commands().begin(), recording.commands().end(), [](const PaintCommand& command) {
+        return command.kind == PaintCommandKind::Box
+            && command.style.backgroundLayers.size() == 1U
+            && command.style.backgroundLayers.front().attachment == BackgroundAttachment::Fixed;
+    });
+    ASSERT_NE(childBox, recording.commands().end());
+    ASSERT_TRUE(childBox->backgroundPaintContext.has_value());
+    EXPECT_FLOAT_EQ(childBox->backgroundPaintContext->paintTranslation.y, 25.f);
 }
 
 TEST(SurfaceTest, HandlesPointerStates) {

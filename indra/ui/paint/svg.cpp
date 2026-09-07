@@ -122,7 +122,7 @@ void appendPathDiagnostics(SvgCompileResult& result, PathCompileResult&& pathRes
 }
 } // namespace
 
-SvgCompileResult compileSvgIcon(const std::string& svg, const std::string& source) {
+SvgCompileResult compileSvgImage(const std::string& svg, const std::string& source) {
     SvgCompileResult result;
     if (svg.empty()) {
         result.error("svg.empty", "SVG source is empty.", source);
@@ -142,11 +142,11 @@ SvgCompileResult compileSvgIcon(const std::string& svg, const std::string& sourc
     validateAttributes(root.get(),
                        {"xmlns", "width", "height", "viewBox", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "class"},
                        result, source);
-    if (hasNonWhitespaceText(root.get())) result.error("svg.text.unsupported", "SVG icons cannot contain text content.", source, lineOf(root.get()));
+    if (hasNonWhitespaceText(root.get())) result.error("svg.text.unsupported", "SVG images cannot contain text content.", source, lineOf(root.get()));
 
-    SvgIcon candidate;
+    SvgImage candidate;
     std::string raw;
-    if (!attribute(root.get(), "viewBox", raw)) result.error("svg.view_box.missing", "SVG icon requires a viewBox.", source, lineOf(root.get()));
+    if (!attribute(root.get(), "viewBox", raw)) result.error("svg.view_box.missing", "SVG image requires a viewBox.", source, lineOf(root.get()));
     else if (!parseViewBox(raw, candidate.viewBox))
         result.error("svg.view_box.invalid", "SVG viewBox must contain four finite numbers with positive width and height.", source,
                      lineOf(root.get()));
@@ -209,8 +209,8 @@ SvgCompileResult compileSvgIcon(const std::string& svg, const std::string& sourc
     }
 
     if (candidate.paths.empty() && !result.hasErrors())
-        result.error("svg.shapes.empty", "SVG icon contains no supported shapes.", source, lineOf(root.get()));
-    if (!result.hasErrors()) result.icon = std::move(candidate);
+        result.error("svg.shapes.empty", "SVG image contains no supported shapes.", source, lineOf(root.get()));
+    if (!result.hasErrors()) result.image = std::move(candidate);
     return result;
 }
 

@@ -70,12 +70,18 @@ public:
     void reapply();
 
     const Rect& bounds() const;
+    PaintTargetKind targetKind() const { return mState.target.kind; }
+    const Vec2& translation() const { return mTranslation; }
+    float pixelScale() const { return mClips.empty() ? mState.target.scale : mClips.back().second; }
+    Rect pixelRect() const;
     std::optional<Rect> coverageBounds() const;
     PaintState snapshot() const;
     PaintState beginCapture(const Rect& capture);
     void restoreCapture(PaintState previous);
 
 private:
+    Rect clipInTargetSpace(const Rect& clip) const;
+
     PaintState mState;
     std::unique_ptr<LLGLState> mScissorState;
     std::vector<std::pair<Rect, float>> mClips;

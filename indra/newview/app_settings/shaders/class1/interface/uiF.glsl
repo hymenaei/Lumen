@@ -15,6 +15,8 @@ uniform int textShadowMode = 0; // 0 = passthrough, 1 = drop, 2 = soft
 uniform vec4 clipCoverageRect;
 uniform int clipCoverageEnabled;
 
+float paintClipCoverage();
+
 float clipCoverage() {
     if (clipCoverageEnabled == 0) return 1.0;
     vec2 size = max(clipCoverageRect.zw, vec2(0.0));
@@ -26,7 +28,7 @@ float clipCoverage() {
 }
 
 vec4 applyClipCoverage(vec4 color) {
-    color.a *= clipCoverage();
+    color.a *= clipCoverage() * paintClipCoverage();
     return color;
 }
 
@@ -43,6 +45,10 @@ uniform vec4 scrollbarClipRect;
 uniform vec4 scrollbarClipRadiusX;
 uniform vec4 scrollbarClipRadiusY;
 uniform int scrollbarClipEnabled;
+uniform vec4 roundedClipRect;
+uniform vec4 roundedClipRadiusX;
+uniform vec4 roundedClipRadiusY;
+uniform int roundedClipEnabled;
 uniform float shapeBorderWidth;
 uniform vec4 shapeColor;
 uniform vec2 shapeOffset;
@@ -64,6 +70,7 @@ uniform vec2 shadowOffset;
 uniform float shadowBlur;
 uniform float shadowSpread;
 uniform sampler2D diffuseMap;
+uniform sampler2D altDiffuseMap;
 uniform vec2 effectTextureSize;
 uniform vec2 effectBlurAxis;
 uniform vec2 effectBlurRadii;
@@ -74,6 +81,7 @@ uniform vec4 effectMaskRect;
 uniform vec4 effectMaskRadiusX;
 uniform vec4 effectMaskRadiusY;
 uniform int effectRoundedMask;
+uniform int maskMode;
 
 const int kPaintOpDirect = 0;
 const int kPaintOpFill = 1;
@@ -85,6 +93,9 @@ const int kPaintOpGradientBorder = 6;
 const int kPaintOpBlur = 7;
 const int kPaintOpComposite = 8;
 const int kPaintOpArrow = 9;
+const int kPaintOpCompositeMask = 10;
+const int kPaintOpImage = 11;
+const int kPaintOpGradientMesh = 12;
 const int kGradientLinear = 0;
 const int kGradientRadial = 1;
 const int kGradientConic = 2;
@@ -119,6 +130,12 @@ float roundedRectDistance(vec2 p, vec2 size, vec4 radiusX, vec4 radiusY) {
 float coverageFromDistance(float signedDistance) {
     float aa = max(fwidth(signedDistance), 1.0e-4);
     return 1.0 - smoothstep(-aa * 0.5, aa * 0.5, signedDistance);
+}
+
+float paintClipCoverage() {
+    if (roundedClipEnabled == 0) return 1.0;
+    vec2 point = gl_FragCoord.xy - roundedClipRect.xy;
+    return coverageFromDistance(roundedRectDistance(point, roundedClipRect.zw, roundedClipRadiusX, roundedClipRadiusY));
 }
 
 float quarterEllipseArc(vec2 radius) {
@@ -253,6 +270,21 @@ vec4 compositedEffectColor(vec2 textureCoord) {
     return color;
 }
 
+vec4 compositedMaskedEffectColor(vec2 textureCoord) {
+    vec4 color = texture(diffuseMap, textureCoord);
+    vec4 mask = texture(altDiffuseMap, textureCoord);
+    color.rgb = color.a > 1.0e-6 ? color.rgb / color.a : vec3(0.0);
+    color.a *= clamp(mask.a, 0.0, 1.0);
+    return color;
+}
+
+vec4 maskCoverageColor(vec4 color) {
+    if (maskMode == 0) return vec4(vec3(color.a), color.a);
+    vec3 unpremultiplied = color.a > 1.0e-6 ? color.rgb / color.a : vec3(0.0);
+    float coverage = dot(unpremultiplied, vec3(0.2126, 0.7152, 0.0722)) * color.a;
+    return vec4(vec3(coverage), coverage);
+}
+
 float triangleEdge(vec2 a, vec2 b, vec2 p) {
     return (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
 }
@@ -282,12 +314,9 @@ float roundedTriangleCoverage(vec2 p, vec2 a, vec2 b, vec2 c, float radius) {
     float cornerBOutgoing = dot(p - b, normalBC);
     float cornerCIncoming = dot(p - c, normalBC);
     float cornerCOutgoing = dot(p - c, normalCA);
-    if (cornerAIncoming < radius && cornerAOutgoing < radius)
-        edgeDistance = roundedTriangleCornerDistance(p, a, normalCA, normalAB, radius);
-    else if (cornerBIncoming < radius && cornerBOutgoing < radius)
-        edgeDistance = roundedTriangleCornerDistance(p, b, normalAB, normalBC, radius);
-    else if (cornerCIncoming < radius && cornerCOutgoing < radius)
-        edgeDistance = roundedTriangleCornerDistance(p, c, normalBC, normalCA, radius);
+    if (cornerAIncoming < radius && cornerAOutgoing < radius) edgeDistance = roundedTriangleCornerDistance(p, a, normalCA, normalAB, radius);
+    else if (cornerBIncoming < radius && cornerBOutgoing < radius) edgeDistance = roundedTriangleCornerDistance(p, b, normalAB, normalBC, radius);
+    else if (cornerCIncoming < radius && cornerCOutgoing < radius) edgeDistance = roundedTriangleCornerDistance(p, c, normalBC, normalCA, radius);
     float aa = max(fwidth(edgeDistance), 1.0e-4);
     return smoothstep(-aa * 0.5, aa * 0.5, edgeDistance);
 }
@@ -391,7 +420,22 @@ vec4 filteredGradientColor(vec2 localCoord) {
 
 void main() {
     if (paintOp == kPaintOpDirect) {
-        fragColor = applyClipCoverage(vertexColor);
+        fragColor = applyClipCoverage(maskMode == 0 ? vertexColor : maskCoverageColor(vertexColor));
+        return;
+    }
+
+    if (paintOp == kPaintOpImage) {
+        vec2 uv = shapeCoord / max(shapeRect.zw, vec2(1.0e-4));
+        vec4 image = texture(diffuseMap, clamp(uv, vec2(0.0), vec2(1.0)));
+        vec4 result = vec4(image.rgb, image.a * vertexColor.a);
+        fragColor = applyClipCoverage(maskMode == 0 ? result : maskCoverageColor(image));
+        return;
+    }
+
+    if (paintOp == kPaintOpGradientMesh) {
+        vec4 color = filteredGradientColor(shapeCoord);
+        vec4 result = vec4(color.rgb, color.a * vertexColor.a);
+        fragColor = applyClipCoverage(maskMode == 0 ? result : maskCoverageColor(result));
         return;
     }
 
@@ -402,6 +446,11 @@ void main() {
 
     if (paintOp == kPaintOpComposite) {
         fragColor = applyClipCoverage(compositedEffectColor(shapeCoord));
+        return;
+    }
+
+    if (paintOp == kPaintOpCompositeMask) {
+        fragColor = applyClipCoverage(compositedMaskedEffectColor(shapeCoord));
         return;
     }
 
@@ -490,7 +539,8 @@ void main() {
 
     if (paintOp == kPaintOpGradient || paintOp == kPaintOpGradientBorder) {
         vec4 color = filteredGradientColor(localCoord);
-        fragColor = applyClipCoverage(vec4(color.rgb, color.a * alpha));
+        vec4 result = vec4(color.rgb, color.a * alpha);
+        fragColor = applyClipCoverage(maskMode == 0 ? result : maskCoverageColor(result));
         return;
     }
 
@@ -504,6 +554,10 @@ uniform sampler2D diffuseMap;
 
 in vec2 vary_texcoord0;
 in vec4 vertexColor;
+
+float paintClipCoverage() {
+    return 1.0;
+}
 
 #ifdef HAS_FONT_GPU
 flat in uint vary_glyphLoc;

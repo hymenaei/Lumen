@@ -10,7 +10,9 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include "css/stylesheet.h"
@@ -27,7 +29,8 @@ class Surface;
 class TextMetrics;
 class OpenGLPaintContext;
 class Element;
-struct SvgIcon;
+struct SvgImage;
+struct RasterImage;
 
 class PublicationCommit {
 public:
@@ -70,7 +73,9 @@ public:
     KeybindingPresentation resolveKeybinding(const std::string& id) const;
     LocalizedText t(std::string id, LocalizationArguments arguments = {}) const;
     std::string resolveHTML(const LocalizedText& text) const;
-    bool hasIcon(const std::string& name) const;
+    const std::string* resourceData(std::string_view reference) const;
+    const SvgImage* resourceSvg(std::string_view reference) const;
+    const RasterImage* resourceRaster(std::string_view reference) const;
     std::uint64_t generation() const { return mGenerationNumber; }
     std::uint64_t localeGeneration() const { return mLocaleGeneration; }
     bool publicationInProgress() const { return mPublicationInProgress; }
@@ -100,7 +105,6 @@ private:
     std::function<void(const std::string&)> mLocaleChangedHandler;
     std::function<KeybindingPresentation(const std::string&)> mKeybindingResolver;
 
-    const SvgIcon* icon(const std::string& name) const;
     const StyleSheet& styleSheet() const;
     void registerSurface(Surface& surface) const;
     void unregisterSurface(Surface& surface) const;

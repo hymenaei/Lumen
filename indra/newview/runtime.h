@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "event/event.h"
 #include "resolver.h"
@@ -96,6 +97,9 @@ public:
     void idle();
     bool hasPointerCapture() const;
     std::optional<CursorStyle> pointerCursor();
+    std::optional<radia::ui::CursorValue> pointerCursorValue();
+    const std::string* resourceData(std::string_view reference) const;
+    std::uint64_t generation() const;
     InputDispatchResult pointerMove(const PointerEvent& event);
     InputDispatchResult pointerDown(const PointerEvent& event);
     InputDispatchResult pointerUp(const PointerEvent& event);

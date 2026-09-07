@@ -101,7 +101,10 @@ TEST(PaintProtocolTest, MatchesShaderProtocol) {
                 && contains(paintProtocolSource, "PAINT_OP_ENTRY(GradientBorder, 6)")
                 && contains(paintProtocolSource, "PAINT_OP_ENTRY(Blur, 7)")
                 && contains(paintProtocolSource, "PAINT_OP_ENTRY(Composite, 8)")
-                && contains(paintProtocolSource, "PAINT_OP_ENTRY(Arrow, 9)"));
+                && contains(paintProtocolSource, "PAINT_OP_ENTRY(Arrow, 9)")
+                && contains(paintProtocolSource, "PAINT_OP_ENTRY(CompositeMask, 10)")
+                && contains(paintProtocolSource, "PAINT_OP_ENTRY(Image, 11)")
+                && contains(paintProtocolSource, "PAINT_OP_ENTRY(GradientMesh, 12)"));
     EXPECT_TRUE(contains(fragmentSource, "uniform int paintOp;")
                 && contains(fragmentSource, "uniform vec4 shapeRect;")
                 && contains(fragmentSource, "uniform vec4 shapeRadiusX;")
@@ -112,9 +115,15 @@ TEST(PaintProtocolTest, MatchesShaderProtocol) {
                 && contains(fragmentSource, "uniform vec4 scrollbarClipRadiusX;")
                 && contains(fragmentSource, "uniform vec4 scrollbarClipRadiusY;")
                 && contains(fragmentSource, "uniform int scrollbarClipEnabled;")
+                && contains(fragmentSource, "uniform vec4 roundedClipRect;")
+                && contains(fragmentSource, "uniform vec4 roundedClipRadiusX;")
+                && contains(fragmentSource, "uniform vec4 roundedClipRadiusY;")
+                && contains(fragmentSource, "uniform int roundedClipEnabled;")
                 && contains(fragmentSource, "uniform vec4 clipCoverageRect;")
                 && contains(fragmentSource, "uniform int clipCoverageEnabled;")
                 && contains(fragmentSource, "uniform vec2 effectTextureSize;")
+                && contains(fragmentSource, "uniform sampler2D altDiffuseMap;")
+                && contains(fragmentSource, "uniform int maskMode;")
                 && contains(fragmentSource, "uniform int gradientKind;")
                 && contains(fragmentSource, "uniform int outlineStyle;"));
     EXPECT_TRUE(contains(fragmentSource, "kPaintOpBorder = 2")
@@ -123,6 +132,8 @@ TEST(PaintProtocolTest, MatchesShaderProtocol) {
     EXPECT_TRUE(contains(fragmentSource, "roundedTriangleCornerDistance")
                 && contains(fragmentSource, "roundedTriangleCoverage(shapeCoord, a, b, c, arrowRadius)"));
     EXPECT_TRUE(contains(fragmentSource, "scrollbarClipEnabled != 0") && contains(fragmentSource, "coverageFromDistance(clipDistance)"));
+    EXPECT_TRUE(contains(fragmentSource, "roundedClipEnabled == 0")
+                && contains(fragmentSource, "roundedRectDistance(point, roundedClipRect.zw, roundedClipRadiusX, roundedClipRadiusY)"));
     EXPECT_TRUE(contains(fragmentSource, "applyClipCoverage")
                 && contains(fragmentSource, "gl_FragCoord.xy")
                 && contains(fragmentSource, "clipCoverageEnabled == 0"));
@@ -145,8 +156,16 @@ TEST(PaintProtocolTest, MatchesShaderProtocol) {
                 && contains(fragmentSource, "borderWidths"));
     EXPECT_TRUE(contains(fragmentSource, "kPaintOpBlur = 7")
                 && contains(fragmentSource, "kPaintOpComposite = 8")
+                && contains(fragmentSource, "kPaintOpCompositeMask = 10")
+                && contains(fragmentSource, "kPaintOpImage = 11")
+                && contains(fragmentSource, "kPaintOpGradientMesh = 12")
                 && contains(fragmentSource, "paintOp == kPaintOpBlur")
                 && contains(fragmentSource, "paintOp == kPaintOpComposite")
+                && contains(fragmentSource, "paintOp == kPaintOpCompositeMask")
+                && contains(fragmentSource, "paintOp == kPaintOpImage")
+                && contains(fragmentSource, "paintOp == kPaintOpGradientMesh")
+                && contains(fragmentSource, "vec4 result = vec4(image.rgb, image.a * vertexColor.a)")
+                && contains(fragmentSource, "maskCoverageColor(image)")
                 && contains(fragmentSource, "blurredEffectColor")
                 && contains(fragmentSource, "maxSamplesPerSide")
                 && contains(fragmentSource, "totalWeight"));

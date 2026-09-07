@@ -230,6 +230,7 @@
 #endif
 
 using radia::ui::CursorStyle;
+using radia::ui::CursorValue;
 using radia::ui::KeybindingPresentation;
 using radia::ui::Vec2;
 using radia::viewer::ui::InputDispatchResult;
@@ -3944,7 +3945,7 @@ void LLViewerWindow::updateUI()
 
     bool handled = false;
     bool hoverHandled = false;
-    std::optional<CursorStyle> radiaCursor;
+    std::optional<CursorValue> radiaCursor;
     const bool pointerCaptured = mUIRuntime && mUIRuntime->hasPointerCapture();
     if (const std::optional<NativePointerInput> pending = takePointerMoveForFrame(
             mPendingPointerMove, uiVisible, mMouseInWindow, pointerCaptured, static_cast<U32>(mask),
@@ -3956,7 +3957,7 @@ void LLViewerWindow::updateUI()
     }
 
     if (mUIRuntime && (mMouseInWindow || pointerCaptured)) {
-        radiaCursor = mUIRuntime->pointerCursor();
+        radiaCursor = mUIRuntime->pointerCursorValue();
         if (radiaCursor) {
             handled = true;
             hoverHandled = true;
@@ -4356,7 +4357,48 @@ void LLViewerWindow::updateUI()
         LLSelectMgr::getInstance()->deselectUnused();
     }
 
-    if (radiaCursor) mWindow->setCursor(translateCursor(*radiaCursor));
+    const std::uint64_t cursorGeneration = mUIRuntime ? mUIRuntime->generation() : 0;
+    const F32 cursorScale = std::max(.0001f, mDisplayScale.mV[VX]);
+    const bool cursorChanged = radiaCursor != mLastRadiaCursor || cursorGeneration != mLastRadiaCursorGeneration
+        || cursorScale != mLastRadiaCursorScale;
+    const bool radiaCursorCleared = cursorChanged && mLastRadiaCursor.has_value() && !radiaCursor.has_value();
+    if (cursorChanged) {
+        mLastRadiaCursor = radiaCursor;
+        mLastRadiaCursorGeneration = cursorGeneration;
+        mLastRadiaCursorScale = cursorScale;
+        mLastRadiaCursorImage.reset();
+        if (radiaCursor) {
+            for (const radia::ui::CursorImage& image : radiaCursor->images) {
+                const std::string* resource = mUIRuntime->resourceData(image.resource);
+                if (!resource) continue;
+                LLCursorImage native;
+                native.data = *resource;
+                native.sourceName = image.resource;
+                native.scale = cursorScale;
+                if (image.hotspotX) {
+                    native.hotspotX = *image.hotspotX;
+                    native.hotspotXSpecified = true;
+                }
+                if (image.hotspotY) {
+                    native.hotspotY = *image.hotspotY;
+                    native.hotspotYSpecified = true;
+                }
+                if (mWindow->setCursorImage(native)) {
+                    mLastRadiaCursorImage = std::move(native);
+                    break;
+                }
+            }
+        }
+    } else if (radiaCursor && mLastRadiaCursorImage && mWindow->setCursorImage(*mLastRadiaCursorImage)) {
+        return;
+    }
+
+    if (radiaCursorCleared) {
+        mWindow->setCursor(mWindow->getNextCursor());
+        return;
+    }
+    if (radiaCursor && mLastRadiaCursorImage && cursorChanged) return;
+    if (radiaCursor) mWindow->setCursor(translateCursor(radiaCursor->style));
 }
 
 

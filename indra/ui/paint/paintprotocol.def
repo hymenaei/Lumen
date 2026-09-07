@@ -22,6 +22,12 @@ PAINT_OP_ENTRY(Blur, 7)
 PAINT_OP_ENTRY(Composite, 8)
 // Arrow draws an antialiased directional scrollbar glyph.
 PAINT_OP_ENTRY(Arrow, 9)
+// CompositeMask applies a captured CSS mask to a captured paint layer.
+PAINT_OP_ENTRY(CompositeMask, 10)
+// Image draws a textured image into the target shape.
+PAINT_OP_ENTRY(Image, 11)
+// GradientMesh draws a gradient into a tessellated vector stroke.
+PAINT_OP_ENTRY(GradientMesh, 12)
 
 // Gradient interpolation mode uploaded as the gradientKind uniform.
 GRADIENT_OP_ENTRY(Linear, 0)

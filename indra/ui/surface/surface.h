@@ -99,7 +99,9 @@ public:
     const NativeAppearance& nativeAppearance() const;
     LayoutDirection layoutDirection() const;
     CursorStyle cursor() const;
+    CursorValue cursorValue() const;
     std::optional<CursorStyle> pointerCursor() const;
+    std::optional<CursorValue> pointerCursorValue() const;
     float width() const { return mViewport.w; }
     float height() const { return mViewport.h; }
 
@@ -142,7 +144,8 @@ private:
     bool moveFocus(bool backwards);
     bool routeEvent(Event& event);
     void collectFocusable(Element& node, std::vector<ElementRef<Element>>& result, StylePass& styles) const;
-    void paintElement(const Element& element, PaintContext& context, float scale, float inheritedOpacity, StylePass& styles) const;
+    void paintElement(const Element& element, PaintContext& context, float scale, float inheritedOpacity, StylePass& styles,
+                      Vec2 paintTranslation) const;
     static constexpr std::size_t kSurfaceLayerCount = static_cast<std::size_t>(SurfaceLayer::Modal) + 1;
 
     struct Mount {

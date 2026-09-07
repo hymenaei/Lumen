@@ -228,7 +228,7 @@ TEST(InputTest, PaintsCheckmark) {
 
     const PaintCommand* text = recording.last(PaintCommandKind::Text);
     ASSERT_NE(text, nullptr);
-    EXPECT_EQ(text->textOrIconName, "\xE2\x9C\x93");
+    EXPECT_EQ(text->text, "\xE2\x9C\x93");
 }
 
 TEST(InputTest, CarriesAccentColor) {

@@ -71,13 +71,14 @@ void Surface::paint(PaintContext& context, float scale, Vec2 pixelOrigin) {
     context.pushClip(mViewport, scale);
     for (const MountList& layerMounts : mMounts)
         for (const MountPtr& mount : layerMounts)
-            if (mount && mount->root) paintElement(*mount->root, context, scale, 1.f, styles);
+            if (mount && mount->root) paintElement(*mount->root, context, scale, 1.f, styles, {});
     context.popClip();
     context.endFrame();
     didPaint(paintedGeneration);
 }
 
-void Surface::paintElement(const Element& element, PaintContext& context, float scale, float inheritedOpacity, StylePass& styles) const {
+void Surface::paintElement(const Element& element, PaintContext& context, float scale, float inheritedOpacity, StylePass& styles,
+                           Vec2 paintTranslation) const {
     const ConstElementObservation observation = observe(element);
     const ComputedStyle& unresolved = styles.style(element);
     const Element* current = observation.get();
@@ -101,23 +102,33 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
     }
     const bool paintsBodyCanvasBackground = current->elementName() == kBodyTag.localName
         && !observation.parent
-        && (painted->backgroundColor.a > 0.f || painted->backgroundGradient.has_value());
+        && (painted->backgroundColor.a > 0.f || painted->backgroundGradient.has_value() || !painted->backgroundLayers.empty());
     const bool clipsX = unresolved.overflowX != Overflow::Visible;
     const bool clipsY = unresolved.overflowY != Overflow::Visible;
     const bool clipsChildren = clipsX || clipsY;
     const ClipAxes clipAxes = (clipsX ? ClipAxes::X : ClipAxes::NoAxes) | (clipsY ? ClipAxes::Y : ClipAxes::NoAxes);
-    if (!painted->effects.empty()) context.beginEffects(current->paintBounds(), *painted, scale);
+    const std::optional<BackgroundPaintContext> previousBackgroundContext = context.backgroundPaintContext();
+    BackgroundPaintContext backgroundContext;
+    backgroundContext.localScrollTranslation = scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()});
+    backgroundContext.paintTranslation = paintTranslation;
+    backgroundContext.viewport = mViewport;
+    backgroundContext.scrollport = ElementInternalAccess::scrollport(*current);
+    context.setBackgroundPaintContext(backgroundContext);
+    if (!painted->effects.empty() || !painted->maskLayers.empty()) context.beginEffects(current->paintBounds(), *painted, scale);
     if (paintsBodyCanvasBackground) {
         ComputedStyle canvasBackground;
         canvasBackground.backgroundColor = painted->backgroundColor;
         canvasBackground.backgroundGradient = painted->backgroundGradient;
+        canvasBackground.backgroundLayers = painted->backgroundLayers;
         context.paintBox(mViewport, canvasBackground);
 
         ComputedStyle bodyStyle = *painted;
         bodyStyle.backgroundColor = Color(0.f, 0.f, 0.f, 0.f);
         bodyStyle.backgroundGradient.reset();
+        bodyStyle.backgroundLayers.clear();
         current->paint(context, bodyStyle, scale);
     } else current->paint(context, *painted, scale);
+    context.setBackgroundPaintContext(previousBackgroundContext);
     const auto isParentStillValid = [&] {
         const Element* currentElement = observation.get();
         return currentElement
@@ -129,9 +140,11 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
     };
     if (isParentStillValid()) {
         current = observation.get();
+        const Vec2 contentTranslation =
+            clipsChildren ? scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()}) : Vec2{};
         if (clipsChildren) {
             context.pushClip(ElementInternalAccess::scrollport(*current), scale, clipAxes);
-            context.pushTranslation(scrollContentTranslation(layoutDirection(), {current->scrollLeft(), current->scrollTop()}));
+            context.pushTranslation(contentTranslation);
         }
         std::vector<NodeRef> children;
         children.reserve(current->mChildren.size());
@@ -148,7 +161,7 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
             }
             const Element* child = childNode->asElement();
             if (child && child->parentElement() == observation.get() && isRootedInSurface(child))
-                paintElement(*child, context, scale, childOpacity, styles);
+                paintElement(*child, context, scale, childOpacity, styles, paintTranslation + contentTranslation);
         }
         if (clipsChildren) {
             context.popTranslation();
@@ -193,6 +206,6 @@ void Surface::paintElement(const Element& element, PaintContext& context, float 
             context.popClip();
         }
     }
-    if (!painted->effects.empty()) context.endEffects();
+    if (!painted->effects.empty() || !painted->maskLayers.empty()) context.endEffects();
 }
 } // namespace radia::ui

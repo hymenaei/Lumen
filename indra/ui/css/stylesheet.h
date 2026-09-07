@@ -28,6 +28,12 @@ struct StyleLayer {
     ResourceLayer resource;
 };
 
+struct StyleResourceReference {
+    std::string value;
+    bool optional = false;
+    bool cursor = false;
+};
+
 inline constexpr std::string_view kDefaultStylesheetResourceId = "style/defaults.css";
 
 std::string_view defaultStylesheetSource() noexcept;
@@ -51,6 +57,7 @@ public:
     StyleSheetLoadResult loadRadiaLayers(const std::vector<StyleLayer>& layers);
     std::uint64_t generation() const;
     const DependencyMap& dependencies() const;
+    const std::vector<StyleResourceReference>& resourceReferences() const;
     bool stateAffectsLayout(ElementState state) const;
     bool stateAffectsLayout(const Element& element, ElementState state) const;
     bool stateAffectsHitTesting(ElementState state) const;

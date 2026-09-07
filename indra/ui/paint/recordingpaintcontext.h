@@ -26,18 +26,18 @@ enum class PaintCommandKind {
     NativeInputMark,
     NativeButton,
     Box,
-    Text,
-    Icon
+    Text
 };
 
 struct PaintCommand {
     PaintCommandKind kind;
     Rect rect;
     ComputedStyle style;
-    std::string textOrIconName;
+    std::string text;
     float scale = 1.f;
     ClipAxes clipAxes = ClipAxes::Both;
     std::optional<TopBorderGap> topBorderGap;
+    std::optional<BackgroundPaintContext> backgroundPaintContext;
     Vec2 translation;
     std::optional<NativeScrollbarPaintRequest> scrollbar;
     std::optional<NativeInputPaintRequest> nativeInput;
@@ -68,8 +68,6 @@ public:
     void paintNativeButton(const NativeButtonPaintRequest& request) override;
     void paintBox(const Rect& rect, const ComputedStyle& style, std::optional<TopBorderGap> topBorderGap = std::nullopt) override;
     void paintText(const std::string& text, const Rect& rect, const ComputedStyle& style) override;
-    void paintIcon(const std::string& name, const Rect& rect, const ComputedStyle& style, float scale) override;
-
     const std::vector<PaintCommand>& commands() const { return mCommands; }
     std::size_t count(PaintCommandKind kind) const;
     const PaintCommand* last(PaintCommandKind kind) const;

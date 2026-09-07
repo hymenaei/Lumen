@@ -30,13 +30,15 @@ struct TopLevelDelimiter {
     char value = 0;
 };
 
+bool isEscaped(std::string_view value, std::size_t position);
+
 std::optional<TopLevelDelimiter> nextTopLevelDelimiter(const std::string& value, std::size_t start) {
     char quote = 0;
     int parentheses = 0;
     for (std::size_t index = start; index < value.size(); ++index) {
         const char character = value[index];
         if (quote) {
-            if (character == quote && (index == 0 || value[index - 1] != '\\')) quote = 0;
+            if (character == quote && !isEscaped(value, index)) quote = 0;
             continue;
         }
         if (character == '\'' || character == '"') {
@@ -77,6 +79,15 @@ bool isCSSWhitespace(char character) {
     return character == '\t' || character == '\n' || character == '\f' || character == '\r' || character == ' ';
 }
 
+bool isEscaped(std::string_view value, std::size_t position) {
+    std::size_t backslashes = 0;
+    while (position > 0 && value[position - 1] == '\\') {
+        --position;
+        ++backslashes;
+    }
+    return (backslashes & 1U) != 0;
+}
+
 bool isCSSNameStart(char character) {
     const auto value = static_cast<unsigned char>(character);
     return (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') || character == '_' || value >= 0x80;
@@ -109,34 +120,52 @@ std::size_t consumeCSSEscape(std::string_view value, std::size_t offset) {
     return position;
 }
 
-std::size_t findUnescaped(std::string_view value, char target, std::size_t start = 0) {
+template<typename Match> std::size_t scanCSS(std::string_view value, std::size_t start, Match match) {
+    int brackets = 0;
+    int parentheses = 0;
+    char quote = 0;
     for (std::size_t position = start; position < value.size(); ++position) {
         if (value[position] == '\\' && isValidCSSEscape(value, position)) {
             position = consumeCSSEscape(value, position) - 1;
             continue;
         }
-        if (value[position] == target) return position;
+        if (quote) {
+            if (value[position] == quote) quote = 0;
+            continue;
+        }
+        if (value[position] == '\'' || value[position] == '"') {
+            quote = value[position];
+            continue;
+        }
+        if (match(position, value[position], brackets, parentheses)) return position;
+        if (value[position] == '[') ++brackets;
+        else if (value[position] == ']' && brackets > 0) --brackets;
+        else if (value[position] == '(') ++parentheses;
+        else if (value[position] == ')' && parentheses > 0) --parentheses;
     }
     return std::string_view::npos;
+}
+
+std::size_t findUnescaped(std::string_view value, char target, std::size_t start = 0) {
+    return scanCSS(value, start, [target](std::size_t, char character, int brackets, int parentheses) {
+        if (target == '[') return character == '[' && brackets == 0;
+        if (target == ']') return character == ']' && brackets == 1;
+        return character == target && brackets == 0 && parentheses == 0;
+    });
 }
 
 std::size_t findUnescapedSequence(std::string_view value, std::string_view target, std::size_t start = 0) {
     if (target.empty()) return start <= value.size() ? start : std::string_view::npos;
-    for (std::size_t position = start; position + target.size() <= value.size(); ++position) {
-        if (value[position] == '\\' && isValidCSSEscape(value, position)) {
-            position = consumeCSSEscape(value, position) - 1;
-            continue;
-        }
-        if (value.compare(position, target.size(), target) == 0) return position;
-    }
-    return std::string_view::npos;
+    return scanCSS(value, start, [&value, target](std::size_t position, char, int brackets, int parentheses) {
+        return brackets == 0 && parentheses == 0 && position + target.size() <= value.size() && value.compare(position, target.size(), target) == 0;
+    });
 }
 
 std::size_t consumeSelectorComponent(std::string_view value, std::size_t position) {
-    while (position < value.size() && !isCSSWhitespace(value[position]) && value[position] != '>')
-        if (value[position] == '\\' && isValidCSSEscape(value, position)) position = consumeCSSEscape(value, position);
-        else ++position;
-    return position;
+    const std::size_t separator = scanCSS(value, position, [](std::size_t, char character, int brackets, int parentheses) {
+        return brackets == 0 && parentheses == 0 && (isCSSWhitespace(character) || character == '>');
+    });
+    return separator == std::string_view::npos ? value.size() : separator;
 }
 
 bool isValidCSSIdentifier(std::string_view value) {
@@ -366,10 +395,10 @@ void parseAttributeSelector(std::string& token, StyleSelector& result) {
         for (; close < token.size(); ++close) {
             const char character = token[close];
             if (quote) {
-                if (character == quote && token[close - 1] != '\\') quote = 0;
+                if (character == quote && !isEscaped(token, close)) quote = 0;
             } else if (character == '\'' || character == '"') {
                 quote = character;
-            } else if (character == ']') {
+            } else if (character == ']' && !isEscaped(token, close)) {
                 break;
             }
         }
@@ -380,49 +409,49 @@ void parseAttributeSelector(std::string& token, StyleSelector& result) {
         }
 
         const std::string expression = token.substr(open + 1, close - open - 1);
-        std::size_t equals = std::string::npos;
+        std::size_t operatorPosition = std::string::npos;
+        std::size_t valuePosition = std::string::npos;
+        StyleAttributeSelector::Match match = StyleAttributeSelector::Match::Exact;
         quote = 0;
         for (std::size_t index = 0; index < expression.size(); ++index) {
             const char character = expression[index];
             if (quote) {
-                if (character == quote && expression[index - 1] != '\\') quote = 0;
+                if (character == quote && !isEscaped(expression, index)) quote = 0;
             } else if (character == '\'' || character == '"') {
                 quote = character;
-            } else if (character == '=') {
-                if (equals != std::string::npos) {
+            } else if (character == '=' || character == '^' || character == '$' || character == '*' || character == '~' || character == '|') {
+                if ((character != '=' && (index + 1 >= expression.size() || expression[index + 1] != '=')) || operatorPosition != std::string::npos) {
                     result.attributeSyntaxInvalid = true;
                     token.erase(open);
                     return;
                 }
-                equals = index;
+                operatorPosition = index;
+                valuePosition = index + (character == '=' ? 1 : 2);
+                switch (character) {
+                    case '^': match = StyleAttributeSelector::Match::Prefix; break;
+                    case '$': match = StyleAttributeSelector::Match::Suffix; break;
+                    case '*': match = StyleAttributeSelector::Match::Substring; break;
+                    case '~': match = StyleAttributeSelector::Match::IncludesWord; break;
+                    case '|': match = StyleAttributeSelector::Match::IncludesHyphen; break;
+                    default: break;
+                }
+                if (character != '=') ++index;
             }
         }
 
         StyleAttributeSelector attribute;
-        if (equals == std::string::npos) {
+        if (operatorPosition == std::string::npos) {
             attribute.name = lower(trim(expression));
-            if (attribute.name.empty()) {
+            if (attribute.name.empty() || !isValidCSSIdentifier(attribute.name)) {
                 result.attributeSyntaxInvalid = true;
                 token.erase(open);
                 return;
             }
             attribute.presence = true;
         } else {
-            attribute.name = lower(trim(expression.substr(0, equals)));
-            std::string value = trim(expression.substr(equals + 1));
-            if (attribute.name.empty() || value.empty()) {
-                result.attributeSyntaxInvalid = true;
-                token.erase(open);
-                return;
-            }
-            if (value.front() == '\'' || value.front() == '"') {
-                if (value.size() < 2 || value.back() != value.front()) {
-                    result.attributeSyntaxInvalid = true;
-                    token.erase(open);
-                    return;
-                }
-                value = value.substr(1, value.size() - 2);
-            } else if (!isValidCSSIdentifier(value)) {
+            attribute.name = lower(trim(expression.substr(0, operatorPosition)));
+            std::string value = trim(expression.substr(valuePosition));
+            if (attribute.name.empty() || !isValidCSSIdentifier(attribute.name)) {
                 result.attributeSyntaxInvalid = true;
                 token.erase(open);
                 return;
@@ -432,7 +461,48 @@ void parseAttributeSelector(std::string& token, StyleSelector& result) {
                 token.erase(open);
                 return;
             }
+            if (value.front() == '\'' || value.front() == '"') {
+                const char valueQuote = value.front();
+                std::size_t closing = 1;
+                for (; closing < value.size(); ++closing)
+                    if (value[closing] == valueQuote && !isEscaped(value, closing)) break;
+                if (closing == value.size()) {
+                    result.attributeSyntaxInvalid = true;
+                    token.erase(open);
+                    return;
+                }
+                const std::string suffix = trim(value.substr(closing + 1));
+                if (!suffix.empty()) {
+                    if (lower(suffix) != "i" && lower(suffix) != "s") {
+                        result.attributeSyntaxInvalid = true;
+                        token.erase(open);
+                        return;
+                    }
+                    attribute.caseInsensitive = lower(suffix) == "i";
+                    attribute.caseSensitivitySpecified = true;
+                }
+                value = value.substr(1, closing - 1);
+            } else {
+                const std::vector<std::string> tokens = detail::tokenizeTopLevel(value);
+                if (tokens.empty()
+                    || tokens.size() > 2
+                    || !isValidCSSIdentifier(tokens.front())
+                    || (tokens.size() == 2 && lower(tokens[1]) != "i" && lower(tokens[1]) != "s")) {
+                    result.attributeSyntaxInvalid = true;
+                    token.erase(open);
+                    return;
+                }
+                attribute.caseInsensitive = tokens.size() == 2 && lower(tokens[1]) == "i";
+                attribute.caseSensitivitySpecified = tokens.size() == 2;
+                value = tokens.front();
+            }
+            if (value.empty() && valuePosition == expression.size()) {
+                result.attributeSyntaxInvalid = true;
+                token.erase(open);
+                return;
+            }
             attribute.value = decodeCSSIdentifier(value);
+            attribute.match = match;
         }
         result.attributes.push_back(std::move(attribute));
         token.erase(open, close - open + 1);
@@ -755,12 +825,14 @@ namespace {
 std::vector<std::string> splitSelectorList(const std::string& selectorText) {
     std::vector<std::string> selectors;
     std::size_t selectorStart = 0;
-    while (selectorStart <= selectorText.size()) {
-        const std::size_t comma = selectorText.find(',', selectorStart);
-        selectors.push_back(trim(selectorText.substr(selectorStart, comma == std::string::npos ? std::string::npos : comma - selectorStart)));
-        if (comma == std::string::npos) break;
-        selectorStart = comma + 1;
-    }
+    scanCSS(selectorText, 0, [&selectors, &selectorStart, &selectorText](std::size_t index, char character, int brackets, int parentheses) {
+        if (character == ',' && brackets == 0 && parentheses == 0) {
+            selectors.push_back(trim(selectorText.substr(selectorStart, index - selectorStart)));
+            selectorStart = index + 1;
+        }
+        return false;
+    });
+    selectors.push_back(trim(selectorText.substr(selectorStart)));
     return selectors;
 }
 
@@ -769,8 +841,7 @@ bool validateSelector(StyleRule& rule, const std::string& selector, StyleSheetLo
         StyleSelector& component = rule.selectors[index];
         const bool declarationComponent = index + 1 == rule.selectors.size();
         if (component.attributeSyntaxInvalid) {
-            result.error("stylesheet.selector.attribute_invalid",
-                         "Attribute selectors must use [attribute] or [type=\"value\"] syntax: " + selector + ".", sourceName);
+            result.error("stylesheet.selector.attribute_invalid", "Invalid CSS attribute selector: " + selector + ".", sourceName);
             return false;
         }
         if (component.pseudoElementSyntaxInvalid) {
@@ -778,12 +849,6 @@ bool validateSelector(StyleRule& rule, const std::string& selector, StyleSheetLo
                          sourceName);
             return false;
         }
-        for (const StyleAttributeSelector& attribute : component.attributes)
-            if (attribute.name != "type" && attribute.name != "switch" && attribute.name != "name") {
-                result.error("stylesheet.selector.attribute_unsupported",
-                             "Only the type, switch, and name attributes can be selected: " + selector + ".", sourceName);
-                return false;
-            }
         if (component.idSyntaxInvalid) {
             result.error("stylesheet.selector.id_invalid", "Element IDs in selectors must use CSS identifier syntax: " + selector + ".", sourceName);
             return false;
@@ -808,9 +873,14 @@ bool validateSelector(StyleRule& rule, const std::string& selector, StyleSheetLo
             return false;
         }
         if (component.element.empty()) {
-            if (!component.attributes.empty() || !component.pseudoElement.empty()) {
+            if (!component.universal && (!component.attributes.empty() || !component.pseudoElement.empty())) {
                 result.error("stylesheet.selector.target_required",
                              "Attributes and pseudo-elements require an element-qualified selector: " + selector + ".", sourceName);
+                return false;
+            }
+            if (component.universal && !component.pseudoElement.empty()) {
+                result.error("stylesheet.selector.target_required", "Pseudo-elements require an element-qualified selector: " + selector + ".",
+                             sourceName);
                 return false;
             }
             continue;
@@ -829,11 +899,6 @@ bool validateSelector(StyleRule& rule, const std::string& selector, StyleSheetLo
             continue;
         }
         const HTMLTag componentTag = lookupHTMLTag(component.element);
-        if (!component.attributes.empty() && componentTag != HTMLTag::Input) {
-            result.error("stylesheet.selector.attribute_unsupported", "Input attributes can only be selected on input: " + selector + ".",
-                         sourceName);
-            return false;
-        }
         const ElementSelectorMetadata metadata = inspectElementSelector(componentTag, component.pseudoElement, targetSpecificState(component.state));
         if (!metadata.known) {
             result.error("stylesheet.selector.element_unknown", "Unknown element element: " + component.element + ".", sourceName);

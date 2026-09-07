@@ -14,7 +14,6 @@
 #include "dom/element.h"
 #include "dom/elementinternal.h"
 #include "html/button.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -25,7 +24,6 @@ namespace {
 using radia::ui::Element;
 using radia::ui::fixedTextMetrics;
 using radia::ui::HTMLButtonElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
@@ -111,7 +109,8 @@ void addCompositeControls(HTMLPanelElement& root, std::size_t nodeCount) {
         switch (index % 3) {
             case 0: {
                 auto button = makeElement<HTMLButtonElement>();
-                auto icon = makeElement<HTMLIconElement>("search");
+                auto icon = makeElement<Element>("i");
+                icon->addClass("i-search");
                 button->append(std::move(icon));
                 appendText(*button, "Apply");
                 root.append(std::move(button));
@@ -178,7 +177,7 @@ bool makeFixture(LayoutFixture& fixture, LayoutCase layoutCase, std::size_t node
             styleSource =
                 "panel { display: flex; flex-direction: column; gap: 2px; } "
                 "button { width: 160px; height: 24px; padding: 4px; gap: 4px; display: flex; flex-direction: row; } "
-                "button > icon { size: 16px; } input { width: 64px; height: 24px; } "
+                "button > i { size: 16px; } input { width: 64px; height: 24px; } "
                 "input { display: flex; flex-direction: row; } input::slider-track { width: 100%; min-width: 0; align-self: stretch; } "
                 "input::slider-thumb { order: -1; size: 18px; } input:checked::slider-thumb { order: 1; } label { width: 160px; height: 18px; }";
             addCompositeControls(*fixture.root, nodeCount);

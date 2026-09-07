@@ -17,7 +17,6 @@
 #include "html/button.h"
 #include "html/elementnames.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"

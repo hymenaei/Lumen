@@ -16,7 +16,6 @@
 #include "floater_test_helpers.h"
 #include "html/button.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -27,6 +26,11 @@
 
 namespace {
 using radia::ui::AccentColor;
+using radia::ui::BackgroundAttachment;
+using radia::ui::BackgroundBox;
+using radia::ui::BackgroundRepeat;
+using radia::ui::BackgroundSizeMode;
+using radia::ui::Color;
 using radia::ui::ColorScheme;
 using radia::ui::ComputedStyle;
 using radia::ui::CursorStyle;
@@ -36,14 +40,18 @@ using radia::ui::Element;
 using radia::ui::ElementState;
 using radia::ui::FixedTextMetrics;
 using radia::ui::FontFamily;
+using radia::ui::Gradient;
 using radia::ui::GradientKind;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLFloaterElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
 using radia::ui::LayoutDirection;
+using radia::ui::MaskComposite;
+using radia::ui::MaskLayer;
+using radia::ui::MaskMode;
+using radia::ui::MaskType;
 using radia::ui::Overflow;
 using radia::ui::PointerEvents;
 using radia::ui::RadialGradientShape;
@@ -57,6 +65,7 @@ using radia::ui::StylePass;
 using radia::ui::StyleSheet;
 using radia::ui::TextAlign;
 using radia::ui::VerticalAlign;
+using radia::ui::Visibility;
 using radia::ui::detail::ElementInternalAccess;
 using radia::ui::detail::makeElement;
 using radia::ui::detail::makeElementValue;
@@ -67,9 +76,10 @@ ComputedStyle computedStyle(const StyleSheet& stylesheet, const Element& element
     return styles.style(element);
 }
 
-HTMLIconElement& appendIcon(HTMLButtonElement& button, std::string name) {
-    auto icon = makeElement<HTMLIconElement>(std::move(name));
-    HTMLIconElement* result = icon.get();
+Element& appendIcon(HTMLButtonElement& button, std::string name) {
+    auto icon = makeElement<Element>("i");
+    Element* result = icon.get();
+    result->addClass("i-" + name);
     button.append(std::move(icon));
     return *result;
 }
@@ -243,14 +253,14 @@ TEST(StyleSheetTest, RejectsReferencesToMissingTokens) {
 }
 
 TEST(StyleSheetTest, MatchesChildSelectors) {
-    constexpr char kChildOwnerStyles[] = "button.primary > icon { width: 10px; } "
-                                         "button.primary:hover > icon { width: 18px; }";
+    constexpr char kChildOwnerStyles[] = "button.primary > i { width: 10px; } "
+                                         "button.primary:hover > i { width: 18px; }";
 
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia(kChildOwnerStyles).ok());
     auto button = makeElementValue<HTMLButtonElement>();
     button.addClass("primary");
-    HTMLIconElement& icon = appendIcon(button, "search");
+    Element& icon = appendIcon(button, "search");
 
     EXPECT_EQ(computedStyle(stylesheet, icon).width.pixels(), 10.f);
     ElementInternalAccess::setState(button, ElementState::Hovered, true);
@@ -300,7 +310,7 @@ TEST(StyleSheetTest, CompilesTargetRules) {
         "input::slider-track { display: flex; } input::slider-thumb { border-radius: 10px; } label { font-size: 13px; } "
         "panel { display: flex; flex-direction: row; font-size: 14px; } input { display: flex; flex-direction: row; } "
         "label { gap: 2px; align-items: center; } "
-        "icon { font-size: 13px; } "
+        "i { font-size: 13px; } "
         "button > label { stroke-width: 2px; } "
         ".copy { font-size: 13px; order: 1; }";
 
@@ -342,6 +352,111 @@ TEST(StyleSheetTest, ClearsRemovedRadioName) {
     input.name("");
     EXPECT_FALSE(input.hasAttribute("name"));
     EXPECT_EQ(computedStyle(stylesheet, input).width.pixels(), 10.f);
+}
+
+TEST(StyleSheetTest, RefreshesSerializedDisabledAttributeSelectors) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("input[disabled=one] { width: 10px; } input[disabled=two] { width: 20px; }").ok());
+
+    auto input = makeElementValue<HTMLInputElement>();
+    input.setAttribute("disabled", "one");
+    StylePass styles(stylesheet, FixedTextMetrics{});
+    EXPECT_EQ(styles.style(input).width.pixels(), 10.f);
+
+    input.setAttribute("disabled", "two");
+    EXPECT_EQ(styles.style(input).width.pixels(), 20.f);
+}
+
+TEST(StyleSheetTest, MatchesCSSAttributeOperators) {
+    StyleSheet stylesheet;
+    const auto result = stylesheet.loadRadia("panel[data-value=\"Alpha-beta gamma\"] { width: 10px; } "
+                                             "panel[data-value^=alpha i] { height: 11px; } "
+                                             "panel[data-value$=GAMMA i] { left: 12px; } "
+                                             "panel[data-value*=PHA-B i] { right: 13px; } "
+                                             "panel[data-value~=gamma] { top: 14px; } "
+                                             "panel[data-value|=alpha i] { bottom: 15px; } "
+                                             "panel[data-value=alpha s] { opacity: .2; } "
+                                             "panel[type=text] { flex-grow: 1; } "
+                                             "panel[type=text i] { flex-shrink: 2; } "
+                                             "panel[type=text s] { order: 3; } "
+                                             "i[class^=\"i-\"] { opacity: .5; }");
+    ASSERT_TRUE(result.ok()) << (result.errors.empty() ? "" : result.errors.front().message);
+
+    auto panel = makeElementValue<HTMLPanelElement>();
+    panel.setAttribute("data-value", "Alpha-beta gamma");
+    EXPECT_EQ(computedStyle(stylesheet, panel).width.pixels(), 10.f);
+    EXPECT_EQ(computedStyle(stylesheet, panel).height.pixels(), 11.f);
+    EXPECT_EQ(computedStyle(stylesheet, panel).left->pixels, 12.f);
+    EXPECT_EQ(computedStyle(stylesheet, panel).right->pixels, 13.f);
+    EXPECT_EQ(computedStyle(stylesheet, panel).top->pixels, 14.f);
+    EXPECT_EQ(computedStyle(stylesheet, panel).bottom->pixels, 15.f);
+    EXPECT_FLOAT_EQ(computedStyle(stylesheet, panel).opacity, 1.f);
+    panel.setAttribute("type", "TeXt");
+    ComputedStyle mixedType = computedStyle(stylesheet, panel);
+    EXPECT_EQ(mixedType.flexGrow, 1.f);
+    EXPECT_EQ(mixedType.flexShrink, 2.f);
+    EXPECT_EQ(mixedType.order, 0);
+
+    panel.setAttribute("type", "text");
+    mixedType = computedStyle(stylesheet, panel);
+    EXPECT_EQ(mixedType.flexGrow, 1.f);
+    EXPECT_EQ(mixedType.flexShrink, 2.f);
+    EXPECT_EQ(mixedType.order, 3);
+
+    auto icon = makeElement<Element>("i");
+    icon->addClass("i-search");
+    EXPECT_FLOAT_EQ(computedStyle(stylesheet, *icon).opacity, .5f);
+}
+
+TEST(StyleSheetTest, RequiresExplicitUniversalForAttributeSelectors) {
+    StyleSheet invalid;
+    const auto invalidResult = invalid.loadRadia("[hidden] { width: 11px; }");
+    ASSERT_FALSE(invalidResult.ok());
+    ASSERT_FALSE(invalidResult.errors.empty());
+    EXPECT_EQ(invalidResult.errors.front().code, "stylesheet.selector.target_required");
+
+    StyleSheet universal;
+    ASSERT_TRUE(universal.loadRadia("*[hidden] { width: 11px; }").ok());
+    auto panel = makeElementValue<HTMLPanelElement>();
+    panel.setAttribute("hidden");
+    EXPECT_EQ(computedStyle(universal, panel).width.pixels(), 11.f);
+
+    StyleSheet universalPseudo;
+    const auto pseudoResult = universalPseudo.loadRadia("*::unknown { width: 12px; }");
+    ASSERT_FALSE(pseudoResult.ok());
+    ASSERT_FALSE(pseudoResult.errors.empty());
+    EXPECT_EQ(pseudoResult.errors.front().code, "stylesheet.selector.target_required");
+}
+
+TEST(StyleSheetTest, DecodesEscapedAttributeSelectorDelimiters) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia(R"(i[data=foo\]] { width: 12px; })").ok());
+
+    auto icon = makeElement<Element>("i");
+    icon->setAttribute("data", "foo]");
+    EXPECT_EQ(computedStyle(stylesheet, *icon).width.pixels(), 12.f);
+}
+
+TEST(StyleSheetTest, InvalidatesDynamicAttributeSelectors) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("panel[hidden] { width: 11px; } panel[visibility=hidden] { height: 12px; }").ok());
+
+    auto panel = makeElementValue<HTMLPanelElement>();
+    StylePass styles(stylesheet, FixedTextMetrics{});
+    EXPECT_TRUE(styles.style(panel).width.isAuto());
+    EXPECT_TRUE(styles.style(panel).height.isAuto());
+
+    panel.setAttribute("hidden");
+    ASSERT_FALSE(styles.style(panel).width.isAuto());
+    EXPECT_EQ(styles.style(panel).width.pixels(), 11.f);
+    panel.removeAttribute("hidden");
+    EXPECT_TRUE(styles.style(panel).width.isAuto());
+
+    panel.setVisibility(Visibility::Hidden);
+    ASSERT_FALSE(styles.style(panel).height.isAuto());
+    EXPECT_EQ(styles.style(panel).height.pixels(), 12.f);
+    panel.setVisibility(Visibility::Visible);
+    EXPECT_TRUE(styles.style(panel).height.isAuto());
 }
 
 TEST(StyleSheetTest, SelectsIndeterminateInputs) {
@@ -711,7 +826,7 @@ TEST(StyleSheetTest, ProjectsMinimizedState) {
 TEST(StyleSheetTest, ParsesTypedDimensions) {
     constexpr char kTypedLengthStyles[] = "panel { width: 40px; min-width: 20px; left: -8px; line-height: 18px; }";
     constexpr char kAutoDimensionStyles[] = "panel { width: 40px; height: 20px; width: auto; height: auto; } "
-                                            "button { size: auto; } icon { size: auto 16px; }";
+                                            "button { size: auto; } i { size: auto 16px; }";
     constexpr char kAutoGapStyles[] = "panel { gap: auto; }";
 
     StyleSheet stylesheet;
@@ -733,7 +848,7 @@ TEST(StyleSheetTest, ParsesTypedDimensions) {
     const ComputedStyle automaticSize = stylesheet.resolve("button", "", {}, 0);
     EXPECT_TRUE(automaticSize.width.isAuto());
     EXPECT_TRUE(automaticSize.height.isAuto());
-    const ComputedStyle mixedSize = stylesheet.resolve("icon", "", {}, 0);
+    const ComputedStyle mixedSize = stylesheet.resolve("i", "", {}, 0);
     EXPECT_TRUE(mixedSize.height.isAuto());
     EXPECT_EQ(mixedSize.width.pixels(), 16.f);
 
@@ -874,13 +989,227 @@ TEST(StyleSheetTest, ParsesVisualEffects) {
     EXPECT_NEAR(solidOverride.borderColor.g, 85.f / 255.f, 1.0e-4f);
 }
 
+TEST(StyleSheetTest, ParsesBackgroundMaskAndCursorLayers) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet
+                    .loadRadia("i { background-image: url(icons/search.svg), linear-gradient(#fff, #000); "
+                               "background-position: 10% 20%, right bottom; background-size: cover, 12px 14px; "
+                               "background-repeat: no-repeat, repeat-x; background-origin: border-box, content-box; "
+                               "background-clip: padding-box, border-box; background-attachment: fixed, local; "
+                               "mask-image: url(icons/mask.svg); mask-mode: alpha; mask-position: right bottom; mask-size: contain; "
+                               "mask-repeat: no-repeat; mask-origin: border-box; mask-clip: content-box; mask-composite: exclude; "
+                               "mask-type: alpha; cursor: url(cursors/pointer.cur) 25 50, pointer; }")
+                    .ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.backgroundLayers.size(), 2U);
+    EXPECT_EQ(style.backgroundLayers[0].resource, "icons/search.svg");
+    ASSERT_TRUE(style.backgroundLayers[1].gradient.has_value());
+    EXPECT_NEAR(style.backgroundLayers[0].position.y.percent, .8f, 1.0e-4f);
+    EXPECT_EQ(style.backgroundLayers[0].size.mode, BackgroundSizeMode::Cover);
+    EXPECT_EQ(style.backgroundLayers[1].size.mode, BackgroundSizeMode::Explicit);
+    EXPECT_EQ(style.backgroundLayers[0].repeat, BackgroundRepeat::NoRepeat);
+    EXPECT_EQ(style.backgroundLayers[1].repeat, BackgroundRepeat::RepeatX);
+    EXPECT_EQ(style.backgroundLayers[0].origin, BackgroundBox::BorderBox);
+    EXPECT_EQ(style.backgroundLayers[0].clip, BackgroundBox::PaddingBox);
+    EXPECT_EQ(style.backgroundLayers[0].attachment, BackgroundAttachment::Fixed);
+    EXPECT_EQ(style.backgroundLayers[1].attachment, BackgroundAttachment::Local);
+
+    ASSERT_EQ(style.maskLayers.size(), 1U);
+    EXPECT_EQ(style.maskLayers[0].image.resource, "icons/mask.svg");
+    EXPECT_EQ(style.maskLayers[0].mode, MaskMode::Alpha);
+    EXPECT_EQ(style.maskLayers[0].composite, MaskComposite::Exclude);
+    EXPECT_EQ(style.maskLayers[0].type, MaskType::Alpha);
+
+    EXPECT_EQ(style.cursor, CursorStyle::Pointer);
+    ASSERT_EQ(style.cursorImages.size(), 1U);
+    EXPECT_EQ(style.cursorImages[0].resource, "cursors/pointer.cur");
+    ASSERT_TRUE(style.cursorImages[0].hotspotX.has_value());
+    ASSERT_TRUE(style.cursorImages[0].hotspotY.has_value());
+    EXPECT_FLOAT_EQ(*style.cursorImages[0].hotspotX, 25.f);
+    EXPECT_FLOAT_EQ(*style.cursorImages[0].hotspotY, 50.f);
+
+    const auto& references = stylesheet.resourceReferences();
+    ASSERT_EQ(references.size(), 3U);
+    EXPECT_EQ(references[0].value, "icons/search.svg");
+    EXPECT_FALSE(references[0].optional);
+    EXPECT_EQ(references[1].value, "icons/mask.svg");
+    EXPECT_TRUE(references[1].optional);
+    EXPECT_EQ(references[2].value, "cursors/pointer.cur");
+    EXPECT_FALSE(references[2].optional);
+    EXPECT_TRUE(references[2].cursor);
+}
+
+TEST(StyleSheetTest, DecodesEscapedImageURLsAndEvenQuoteEscapes) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia(R"(i[data="a\\"] {} i { background-image: url(icons/a\20 b.svg); })").ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.backgroundLayers.size(), 1U);
+    EXPECT_EQ(style.backgroundLayers.front().resource, "icons/a b.svg");
+}
+
+TEST(StyleSheetTest, ParsesCSSCursorHotspotNumbers) {
+    StyleSheet percentage;
+    EXPECT_FALSE(percentage.loadRadia("i { cursor: url(cursors/default.png) 25% 50%, pointer; }").ok());
+
+    StyleSheet pixels;
+    EXPECT_FALSE(pixels.loadRadia("i { cursor: url(cursors/default.png) 25px 50px, pointer; }").ok());
+
+    StyleSheet outOfBounds;
+    ASSERT_TRUE(outOfBounds.loadRadia("i { cursor: url(cursors/default.png) -1 1e30, pointer; }").ok());
+    const ComputedStyle style = outOfBounds.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.cursorImages.size(), 1U);
+    ASSERT_TRUE(style.cursorImages.front().hotspotX.has_value());
+    ASSERT_TRUE(style.cursorImages.front().hotspotY.has_value());
+    EXPECT_FLOAT_EQ(*style.cursorImages.front().hotspotX, -1.f);
+    EXPECT_FLOAT_EQ(*style.cursorImages.front().hotspotY, 1e30f);
+
+    StyleSheet incomplete;
+    EXPECT_FALSE(incomplete.loadRadia("i { cursor: url(cursors/default.png) 25, pointer; }").ok());
+}
+
+TEST(StyleSheetTest, ParsesRasterBackgroundImages) {
+    StyleSheet longhand;
+    ASSERT_TRUE(longhand.loadRadia("i { background-image: url(images/pattern.png); }").ok());
+    const ComputedStyle longhandStyle = longhand.resolve("i", "", {}, 0);
+    ASSERT_EQ(longhandStyle.backgroundLayers.size(), 1U);
+    EXPECT_EQ(longhandStyle.backgroundLayers.front().resource, "images/pattern.png");
+
+    StyleSheet shorthand;
+    ASSERT_TRUE(shorthand.loadRadia("i { background: url(images/pattern.png); }").ok());
+    const ComputedStyle shorthandStyle = shorthand.resolve("i", "", {}, 0);
+    ASSERT_EQ(shorthandStyle.backgroundLayers.size(), 1U);
+    EXPECT_EQ(shorthandStyle.backgroundLayers.front().resource, "images/pattern.png");
+}
+
+TEST(StyleSheetTest, ParsesBackgroundShorthandAfterSlash) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("i { background: url(icons/search.svg) center / contain no-repeat; }").ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.backgroundLayers.size(), 1U);
+    EXPECT_EQ(style.backgroundLayers.front().resource, "icons/search.svg");
+    EXPECT_FLOAT_EQ(style.backgroundLayers.front().position.x.percent, .5f);
+    EXPECT_FLOAT_EQ(style.backgroundLayers.front().position.y.percent, .5f);
+    EXPECT_EQ(style.backgroundLayers.front().size.mode, BackgroundSizeMode::Contain);
+    EXPECT_EQ(style.backgroundLayers.front().repeat, BackgroundRepeat::NoRepeat);
+}
+
+TEST(StyleSheetTest, UsesCSSImageInitialValues) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("i { background: url(icon.svg); mask-image: url(mask.svg); }").ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.backgroundLayers.size(), 1U);
+    EXPECT_FLOAT_EQ(style.backgroundColor.r, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.g, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.b, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.a, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundLayers[0].position.x.percent, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundLayers[0].position.y.percent, 1.f);
+    EXPECT_EQ(style.backgroundLayers[0].size.mode, BackgroundSizeMode::Auto);
+    EXPECT_FALSE(style.backgroundLayers[0].size.width.has_value());
+    EXPECT_FALSE(style.backgroundLayers[0].size.height.has_value());
+    EXPECT_EQ(style.backgroundLayers[0].repeat, BackgroundRepeat::Repeat);
+    EXPECT_EQ(style.backgroundLayers[0].origin, BackgroundBox::PaddingBox);
+    EXPECT_EQ(style.backgroundLayers[0].clip, BackgroundBox::BorderBox);
+    EXPECT_EQ(style.backgroundLayers[0].attachment, BackgroundAttachment::Scroll);
+
+    ASSERT_EQ(style.maskLayers.size(), 1U);
+    EXPECT_FLOAT_EQ(style.maskLayers[0].image.position.x.percent, 0.f);
+    EXPECT_FLOAT_EQ(style.maskLayers[0].image.position.y.percent, 1.f);
+    EXPECT_EQ(style.maskLayers[0].image.size.mode, BackgroundSizeMode::Auto);
+    EXPECT_FALSE(style.maskLayers[0].image.size.width.has_value());
+    EXPECT_FALSE(style.maskLayers[0].image.size.height.has_value());
+    EXPECT_EQ(style.maskLayers[0].image.repeat, BackgroundRepeat::Repeat);
+    EXPECT_EQ(style.maskLayers[0].image.origin, BackgroundBox::BorderBox);
+    EXPECT_EQ(style.maskLayers[0].image.clip, BackgroundBox::BorderBox);
+    EXPECT_EQ(style.maskLayers[0].type, MaskType::Alpha);
+}
+
+TEST(StyleSheetTest, BackgroundShorthandResetsAllComponents) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet
+                    .loadRadia("i { background-color: #ff0000; background-position: right bottom; background-size: cover; "
+                               "background-repeat: no-repeat; background-origin: content-box; background-clip: padding-box; "
+                               "background-attachment: fixed; background: transparent; }")
+                    .ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    EXPECT_FLOAT_EQ(style.backgroundColor.r, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.g, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.b, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundColor.a, 0.f);
+    ASSERT_EQ(style.backgroundLayers.size(), 1U);
+    EXPECT_TRUE(style.backgroundLayers.front().resource.empty());
+    EXPECT_FALSE(style.backgroundLayers.front().gradient.has_value());
+    EXPECT_FLOAT_EQ(style.backgroundLayers.front().position.x.percent, 0.f);
+    EXPECT_FLOAT_EQ(style.backgroundLayers.front().position.y.percent, 1.f);
+    EXPECT_EQ(style.backgroundLayers.front().size.mode, BackgroundSizeMode::Auto);
+    EXPECT_FALSE(style.backgroundLayers.front().size.width.has_value());
+    EXPECT_FALSE(style.backgroundLayers.front().size.height.has_value());
+    EXPECT_EQ(style.backgroundLayers.front().repeat, BackgroundRepeat::Repeat);
+    EXPECT_EQ(style.backgroundLayers.front().attachment, BackgroundAttachment::Scroll);
+    EXPECT_EQ(style.backgroundLayers.front().origin, BackgroundBox::PaddingBox);
+    EXPECT_EQ(style.backgroundLayers.front().clip, BackgroundBox::BorderBox);
+}
+
+TEST(StyleSheetTest, RejectsDuplicateImageLayerComponents) {
+    const char* invalid[] = {
+        "i { background: url(a.svg) repeat repeat; }",
+        "i { background: url(a.svg) fixed scroll; }",
+        "i { mask: url(a.svg) alpha alpha; }",
+        "i { mask: url(a.svg) add add; }",
+    };
+    for (const char* styles : invalid) {
+        StyleSheet stylesheet;
+        EXPECT_FALSE(stylesheet.loadRadia(styles).ok()) << styles;
+    }
+
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("i { background: url(a.svg) repeat no-repeat; }").ok());
+    EXPECT_EQ(stylesheet.resolve("i", "", {}, 0).backgroundLayers.front().repeat, BackgroundRepeat::RepeatX);
+}
+
+TEST(StyleSheetTest, NormalizesImageLonghandsRegardlessOfDeclarationOrder) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet
+                    .loadRadia("i { background-position: right, left; background-attachment: fixed, local; "
+                               "background-image: url(one.svg), url(two.svg); mask-position: right, left; "
+                               "mask-image: url(one.svg), url(two.svg); }")
+                    .ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_EQ(style.backgroundLayers.size(), 2U);
+    EXPECT_EQ(style.backgroundLayers[0].position.x.percent, 1.f);
+    EXPECT_EQ(style.backgroundLayers[1].position.x.percent, 0.f);
+    EXPECT_EQ(style.backgroundLayers[0].attachment, BackgroundAttachment::Fixed);
+    EXPECT_EQ(style.backgroundLayers[1].attachment, BackgroundAttachment::Local);
+    ASSERT_EQ(style.maskLayers.size(), 2U);
+    EXPECT_EQ(style.maskLayers[0].image.position.x.percent, 1.f);
+    EXPECT_EQ(style.maskLayers[1].image.position.x.percent, 0.f);
+}
+
+TEST(StyleSheetTest, DoesNotApplyInheritedOpacityToMaskCoverage) {
+    ComputedStyle style;
+    style.maskLayers = {MaskLayer{}};
+    style.maskLayers[0].image.gradient = Gradient{};
+    style.maskLayers[0].image.gradient->stops = {{Color(1.f, 1.f, 1.f, .8f), 0.f}, {Color(1.f, 1.f, 1.f, .4f), 1.f}};
+
+    radia::ui::applyOpacity(style, .5f);
+
+    EXPECT_FLOAT_EQ(style.opacity, .5f);
+    EXPECT_FLOAT_EQ(style.maskLayers[0].image.gradient->stops[0].color.a, .8f);
+    EXPECT_FLOAT_EQ(style.maskLayers[0].image.gradient->stops[1].color.a, .4f);
+}
+
 TEST(StyleSheetTest, RejectsInvalidBoxEffects) {
     const char* invalidSources[] = {
         "panel { background-color: linear-gradient(#fff); }",
         "panel { background-color: radial-gradient(square, #fff, #000); }",
         "panel { border-color: conic-gradient(from nowhere, #fff, #000); }",
         "panel { border: 1px repeating-linear-gradient(#fff 20%, #000 20%); }",
-        "panel { background: #ffffffff; }",
         "panel { box-shadow: 0 0 -1px #000; }",
         "panel { background-color: ButtonFace; }",
         "panel { border-color: ButtonBorder; }",

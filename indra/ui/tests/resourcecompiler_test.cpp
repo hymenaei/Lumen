@@ -17,7 +17,6 @@
 #include "floater_test_helpers.h"
 #include "html/button.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -42,7 +41,6 @@ using radia::ui::ElementRef;
 using radia::ui::fixedTextMetrics;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLFloaterElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
@@ -119,6 +117,14 @@ TEST(ResourceIdTest, PreservesPathProvenance) {
     EXPECT_EQ(loaded->provenance, "skin.views/foo.html");
 }
 
+TEST(ResourceSnapshotTest, ResolvesRootAssetReferences) {
+    ResourceSnapshot snapshot;
+    ASSERT_TRUE(snapshot.add("resources/icons/close.svg", "close"));
+
+    EXPECT_EQ(snapshot.resolve(ResourceId("skin.css"), "icons/close.svg"), ResourceId("icons/close.svg"));
+    EXPECT_EQ(snapshot.resolve(ResourceId("skin.css"), "/icons/close.svg"), ResourceId("icons/close.svg"));
+}
+
 TEST(ResourceSnapshotTest, EqualityIncludesPrefixAliases) {
     ResourceSnapshot baseline;
     ResourceSnapshot candidate;
@@ -162,13 +168,13 @@ TEST_F(ResourceCompilerTest, ResolvesResourceReferences) {
 }
 
 TEST_F(ResourceCompilerTest, BuildsFloaterEvents) {
-    resources["elements/minimize.html"] = "<minimize><icon src=\"minimize\"></icon></minimize>";
-    resources["elements/close.html"] = "<close><icon src=\"close\"></icon></close>";
+    resources["elements/minimize.html"] = "<minimize><i class=\"i-minimize md\"></i></minimize>";
+    resources["elements/close.html"] = "<close><i class=\"i-close md\"></i></close>";
     constexpr char kFloaterLayout[] = "<floater resizeable><head><title>title</title><minimize></minimize><close></close></head><body>"
                                       "<p id=\"status\">Ready</p>"
                                       "<button id=\"go\" onClick=\"demoGo()\" onDoubleClick=\"demoDouble()\" "
                                       "onPointerDown=\"demoPress()\" onContextMenu=\"demoMenu()\" onWheel=\"demoWheel()\">"
-                                      "<icon src=\"search\"></icon>Go</button><input type=\"checkbox\" switch=\"true\" name=\"mode\" id=\"toggle\" "
+                                      "<i class=\"i-search md\"></i>Go</button><input type=\"checkbox\" switch=\"true\" name=\"mode\" id=\"toggle\" "
                                       "checked=\"true\" onInput=\"demoInput()\" onChange=\"demoChanged()\"></body></floater>";
     ResourceBuildResult result = factory.buildElementTreeFromString(kFloaterLayout, "floater.html");
     ASSERT_TRUE(result.ok());
@@ -465,7 +471,7 @@ TEST_F(ResourceCompilerTest, KeepsSlashInUnquotedValue) {
 
 TEST_F(ResourceCompilerTest, ComposesButtonInlineChildren) {
     constexpr char kButtonLayout[] = "<button>first"
-                                     "<icon src=\"one\"></icon></button>";
+                                     "<i class=\"i-one\"></i></button>";
     ResourceBuildResult result = factory.buildElementTreeFromString(kButtonLayout);
     ASSERT_TRUE(result.ok());
     HTMLButtonElement* button = result.rootAs<HTMLButtonElement>();
@@ -477,13 +483,13 @@ TEST_F(ResourceCompilerTest, ComposesButtonInlineChildren) {
     auto iconNode = buttonNodes.begin();
     ++iconNode;
     ASSERT_NE(iconNode->asElement(), nullptr);
-    auto* icon = dynamic_cast<radia::ui::HTMLIconElement*>(iconNode->asElement());
+    auto* icon = iconNode->asElement();
     ASSERT_NE(icon, nullptr);
-    EXPECT_EQ(icon->name(), "one");
+    EXPECT_TRUE(icon->classes().contains("i-one"));
     ASSERT_EQ(button->children().size(), 1U);
     EXPECT_EQ(button->children().front(), icon);
 
-    constexpr char kIconFirstLayout[] = "<button><icon src=\"search\"></icon>"
+    constexpr char kIconFirstLayout[] = "<button><i class=\"i-search\"></i>"
                                         "second</button>";
     ResourceBuildResult iconFirst = factory.buildElementTreeFromString(kIconFirstLayout);
     ASSERT_TRUE(iconFirst.ok());
@@ -492,23 +498,22 @@ TEST_F(ResourceCompilerTest, ComposesButtonInlineChildren) {
     const auto reversedNodes = nodes(*reversed);
     ASSERT_EQ(reversedNodes.size(), 2U);
     ASSERT_NE(reversedNodes.begin()->asElement(), nullptr);
-    EXPECT_EQ(reversedNodes.begin()->asElement()->elementName(), "icon");
+    EXPECT_EQ(reversedNodes.begin()->asElement()->elementName(), "i");
     auto reversedText = reversedNodes.begin();
     ++reversedText;
     ASSERT_NE(reversedText->asText(), nullptr);
     EXPECT_EQ(reversedText->asText()->data(), "second");
 
-    button->append(makeElement<HTMLIconElement>("updated"));
+    button->append(makeElement<Element>("i"));
     appendText(*button, "updated");
     EXPECT_EQ(nodes(*button).size(), 4U);
     button->replaceChildren();
     EXPECT_TRUE(nodes(*button).empty());
-    auto rebuilt = makeElement<HTMLIconElement>("rebuilt");
-    radia::ui::HTMLIconElement* rebuiltIcon = rebuilt.get();
+    auto rebuilt = makeElement<Element>("i");
+    Element* rebuiltIcon = rebuilt.get();
     button->append(std::move(rebuilt));
     ASSERT_EQ(button->children().size(), 1U);
     EXPECT_EQ(button->children().front(), rebuiltIcon);
-    EXPECT_EQ(rebuiltIcon->name(), "rebuilt");
 }
 
 TEST_F(ResourceCompilerTest, RefreshesLocalizedElements) {
@@ -758,8 +763,8 @@ TEST_F(ResourceCompilerTest, RejectsMismatchedHTMLTags) {
 }
 
 TEST_F(ResourceCompilerTest, ManagesFloaterHead) {
-    constexpr char kFloaterLayout[] = "<floater><head><title><icon src=\"search\"></icon>tools</title>"
-                                      "<minimize><icon src=\"minimize\"></icon></minimize><close><icon src=\"close\"></icon></close></head>"
+    constexpr char kFloaterLayout[] = "<floater><head><title><i class=\"i-search lg\"></i>tools</title>"
+                                      "<minimize><i class=\"i-minimize md\"></i></minimize><close><i class=\"i-close md\"></i></close></head>"
                                       "<body><panel id=\"content\"><button id=\"refresh\">Refresh</button></panel></body></floater>";
     ResourceBuildResult result = factory.buildElementTreeFromString(kFloaterLayout, "floater_head.html");
     ASSERT_TRUE(result.ok());
@@ -776,8 +781,8 @@ TEST_F(ResourceCompilerTest, ManagesFloaterHead) {
     EXPECT_EQ(refresh->parentElement(), content.get());
     EXPECT_EQ(floater->head()->children()[1], floater->minimizeButton());
     EXPECT_EQ(floater->head()->children()[2], floater->closeButton());
-    EXPECT_EQ(floater->minimizeButton()->children()[0]->elementName(), "icon");
-    EXPECT_EQ(floater->closeButton()->children()[0]->elementName(), "icon");
+    EXPECT_EQ(floater->minimizeButton()->children()[0]->elementName(), "i");
+    EXPECT_EQ(floater->closeButton()->children()[0]->elementName(), "i");
     EXPECT_TRUE(floater->closable());
     EXPECT_TRUE(floater->minimizable());
 
@@ -876,8 +881,8 @@ TEST_F(ResourceCompilerTest, RejectsInvalidFloaterStructure) {
 }
 
 TEST_F(ResourceCompilerTest, AppliesChildBearingElementDefaults) {
-    resources["elements/minimize.html"] = "<minimize><icon src=\"minimize\"></icon></minimize>";
-    resources["elements/close.html"] = "<close><icon src=\"close\"></icon></close>";
+    resources["elements/minimize.html"] = "<minimize><i class=\"i-minimize md\"></i></minimize>";
+    resources["elements/close.html"] = "<close><i class=\"i-close md\"></i></close>";
     constexpr char kDefaultedFloaterLayout[] =
         "<floater><head><title>defaulted</title><minimize></minimize><close></close></head><body></body></floater>";
 
@@ -891,26 +896,27 @@ TEST_F(ResourceCompilerTest, AppliesChildBearingElementDefaults) {
     ASSERT_NE(floater->minimizeButton(), nullptr);
     ASSERT_EQ(floater->closeButton()->children().size(), 1U);
     ASSERT_EQ(floater->minimizeButton()->children().size(), 1U);
-    const auto* closeIcon = dynamic_cast<radia::ui::HTMLIconElement*>(floater->closeButton()->children().front());
-    const auto* minimizeIcon = dynamic_cast<radia::ui::HTMLIconElement*>(floater->minimizeButton()->children().front());
+    const auto* closeIcon = floater->closeButton()->children().front();
+    const auto* minimizeIcon = floater->minimizeButton()->children().front();
     ASSERT_NE(closeIcon, nullptr);
     ASSERT_NE(minimizeIcon, nullptr);
-    EXPECT_EQ(closeIcon->name(), "close");
-    EXPECT_EQ(minimizeIcon->name(), "minimize");
+    EXPECT_TRUE(closeIcon->classes().contains("i-close"));
+    EXPECT_TRUE(minimizeIcon->classes().contains("i-minimize"));
     EXPECT_TRUE(floater->closable());
     EXPECT_TRUE(floater->minimizable());
 
-    constexpr char kOverrideLayout[] = "<floater><head><title>override</title><minimize><icon src=\"custom\"></icon></minimize><close></close></head>"
-                                       "<body></body></floater>";
+    constexpr char kOverrideLayout[] =
+        "<floater><head><title>override</title><minimize><i class=\"i-custom md\"></i></minimize><close></close></head>"
+        "<body></body></floater>";
     result = factory.buildElementTreeFromString(kOverrideLayout, "override.html");
     ASSERT_TRUE(result.ok());
     floater = result.rootAs<HTMLFloaterElement>();
     ASSERT_NE(floater, nullptr);
     ASSERT_NE(floater->minimizeButton(), nullptr);
     ASSERT_EQ(floater->minimizeButton()->children().size(), 1U);
-    const auto* customIcon = dynamic_cast<radia::ui::HTMLIconElement*>(floater->minimizeButton()->children().front());
+    const auto* customIcon = floater->minimizeButton()->children().front();
     ASSERT_NE(customIcon, nullptr);
-    EXPECT_EQ(customIcon->name(), "custom");
+    EXPECT_TRUE(customIcon->classes().contains("i-custom"));
 }
 
 TEST_F(ResourceCompilerTest, RejectsInvalidElementDefaults) {
@@ -987,9 +993,10 @@ TEST_F(ResourceCompilerTest, PreservesDiagnosticProvenance) {
 }
 
 TEST_F(ResourceCompilerTest, AcceptsCaseInsensitiveHTMLNames) {
-    constexpr char kCaseInsensitiveLayout[] = "<FlOaTeR ReSiZeAbLe><HeAd><TiTlE>tools</TiTlE><MiNiMiZe></MiNiMiZe></HeAd><BoDy>"
-                                              "<BuTtOn ID=\"saveFile\" ONCLICK=\"saveFile()\">"
-                                              "<IcOn SrC=\"search\"></IcOn>Save</BuTtOn></BoDy></FlOaTeR>";
+    constexpr char kCaseInsensitiveLayout[] =
+        "<FlOaTeR ReSiZeAbLe><HeAd><TiTlE>tools</TiTlE><MiNiMiZe><I class=\"i-minimize md\"></I></MiNiMiZe></HeAd><BoDy>"
+        "<BuTtOn ID=\"saveFile\" ONCLICK=\"saveFile()\">"
+        "<I class=\"i-search md\"></I>Save</BuTtOn></BoDy></FlOaTeR>";
     ResourceBuildResult result = factory.buildElementTreeFromString(kCaseInsensitiveLayout, "case-insensitive.html");
     ASSERT_TRUE(result.ok());
     HTMLFloaterElement* floater = result.rootAs<HTMLFloaterElement>();
@@ -997,7 +1004,7 @@ TEST_F(ResourceCompilerTest, AcceptsCaseInsensitiveHTMLNames) {
     const ElementRef<HTMLButtonElement> button = requireElement<HTMLButtonElement>(*floater, "saveFile");
     ASSERT_NE(button.get(), nullptr);
     ASSERT_EQ(button->children().size(), 1U);
-    ASSERT_NE(dynamic_cast<radia::ui::HTMLIconElement*>(button->children().front()), nullptr);
+    ASSERT_NE(button->children().front(), nullptr);
     EXPECT_EQ(button->elementName(), "button");
     ASSERT_NE(authoredEventCall(*button, kClickEvent), nullptr);
     EXPECT_EQ(authoredEventCall(*button, kClickEvent)->name(), "saveFile");

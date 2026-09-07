@@ -11,7 +11,6 @@
 #include "html/elementnames.h"
 #include "html/fieldset.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -23,7 +22,6 @@ std::unique_ptr<Element> HTMLElementFactory::Create(std::string_view localName) 
         case HTMLTag::Button: return std::unique_ptr<HTMLButtonElement>(new HTMLButtonElement());
         case HTMLTag::Fieldset: return std::unique_ptr<HTMLFieldsetElement>(new HTMLFieldsetElement());
         case HTMLTag::Floater: return std::unique_ptr<HTMLFloaterElement>(new HTMLFloaterElement());
-        case HTMLTag::Icon: return std::unique_ptr<HTMLIconElement>(new HTMLIconElement());
         case HTMLTag::Input: return std::unique_ptr<HTMLInputElement>(new HTMLInputElement());
         case HTMLTag::Label: return std::unique_ptr<HTMLLabelElement>(new HTMLLabelElement());
         case HTMLTag::Legend: return std::unique_ptr<HTMLLegendElement>(new HTMLLegendElement());

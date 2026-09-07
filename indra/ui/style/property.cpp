@@ -24,6 +24,7 @@ namespace radia::ui {
 namespace {
 using detail::endsWith;
 using detail::lower;
+using detail::startsWith;
 using detail::StylePropertyImpact;
 using detail::trim;
 
@@ -358,6 +359,637 @@ CompileResult compileOutlineOffset(detail::StyleCompileContext& context) {
     return parsed && parsed->percent == 0.f ? context.compiled(*parsed) : context.invalid();
 }
 
+bool isEscaped(std::string_view value, std::size_t position) {
+    std::size_t backslashes = 0;
+    while (position > 0 && value[position - 1] == '\\') {
+        --position;
+        ++backslashes;
+    }
+    return (backslashes & 1U) != 0;
+}
+
+bool isValidUnquotedCSSUrl(std::string_view value) {
+    const auto isHexDigit = [](char character) {
+        const auto code = static_cast<unsigned char>(character);
+        return (code >= '0' && code <= '9') || (code >= 'a' && code <= 'f') || (code >= 'A' && code <= 'F');
+    };
+
+    for (std::size_t position = 0; position < value.size();) {
+        if (value[position] == '\\') {
+            ++position;
+            if (position == value.size()) return false;
+            if (value[position] == '\r') {
+                ++position;
+                if (position < value.size() && value[position] == '\n') ++position;
+                continue;
+            }
+            if (value[position] == '\n' || value[position] == '\f') {
+                ++position;
+                continue;
+            }
+            if (isHexDigit(value[position])) {
+                std::size_t digits = 0;
+                while (position < value.size() && digits < 6 && isHexDigit(value[position])) {
+                    ++position;
+                    ++digits;
+                }
+                if (position < value.size() && detail::isCSSWhitespace(value[position])) ++position;
+            } else ++position;
+            continue;
+        }
+        if (detail::isCSSWhitespace(value[position])
+            || value[position] == '\''
+            || value[position] == '"'
+            || value[position] == '('
+            || value[position] == ')')
+            return false;
+        ++position;
+    }
+    return true;
+}
+
+std::optional<std::string> parseCSSUrl(const std::string& raw) {
+    const std::string value = trim(raw);
+    const std::string lowered = lower(value);
+    if (!startsWith(lowered, "url(") || value.size() < 5 || value.back() != ')') return std::nullopt;
+    std::string url = trim(value.substr(4, value.size() - 5));
+    if (url.size() >= 2 && (url.front() == '\'' || url.front() == '"')) {
+        const char quote = url.front();
+        std::size_t closing = 1;
+        for (; closing < url.size(); ++closing)
+            if (url[closing] == quote && !isEscaped(url, closing)) break;
+        if (closing == url.size() || !trim(url.substr(closing + 1)).empty()) return std::nullopt;
+        url = url.substr(1, closing - 1);
+    } else if (!isValidUnquotedCSSUrl(url)) return std::nullopt;
+    url = detail::decodeCSSIdentifier(url);
+    return url.empty() ? std::nullopt : std::optional<std::string>(std::move(url));
+}
+
+std::optional<BackgroundLayer> parseBackgroundImage(const StyleModel& model, const std::string& raw) {
+    const std::string value = trim(raw);
+    BackgroundLayer layer;
+    if (lower(value) == "none") return layer;
+    if (const std::optional<std::string> url = parseCSSUrl(value)) {
+        layer.resource = *url;
+        return layer;
+    }
+    if (const std::optional<Gradient> gradient = model.parseGradient(value)) {
+        layer.gradient = *gradient;
+        return layer;
+    }
+    return std::nullopt;
+}
+
+template<typename Parse> std::optional<std::vector<BackgroundLayer>> parseBackgroundLayerList(const std::string& raw, Parse parse) {
+    const std::vector<std::string> values = detail::splitTopLevel(raw, ',');
+    if (values.empty()) return std::nullopt;
+    std::vector<BackgroundLayer> result;
+    result.reserve(values.size());
+    for (const std::string& value : values) {
+        const std::optional<BackgroundLayer> layer = parse(value);
+        if (!layer) return std::nullopt;
+        result.push_back(*layer);
+    }
+    return result;
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundImages(const StyleModel& model, const std::string& raw) {
+    return parseBackgroundLayerList(raw, [&model](const std::string& value) { return parseBackgroundImage(model, value); });
+}
+
+std::optional<Length> parsePositionHorizontal(const StyleModel& model, const std::string& raw) {
+    const std::string value = lower(trim(raw));
+    if (value == "left") return Length{0.f};
+    if (value == "center") return Length{0.f, .5f};
+    if (value == "right") return Length{0.f, 1.f};
+    return model.parseLengthValue(raw);
+}
+
+std::optional<Length> parsePositionVertical(const StyleModel& model, const std::string& raw) {
+    const std::string value = lower(trim(raw));
+    if (value == "bottom") return Length{0.f};
+    if (value == "center") return Length{0.f, .5f};
+    if (value == "top") return Length{0.f, 1.f};
+    const std::optional<Length> length = model.parseLengthValue(raw);
+    if (!length) return std::nullopt;
+    return Length{-length->pixels, 1.f - length->percent};
+}
+
+bool isPositionToken(const std::string& raw) {
+    const std::string value = lower(trim(raw));
+    return value == "left"
+        || value == "right"
+        || value == "top"
+        || value == "bottom"
+        || value == "center"
+        || endsWith(value, "px")
+        || (!value.empty() && (value.back() == '%' || value.find_first_of("0123456789.-") == 0));
+}
+
+std::optional<BackgroundPosition> parseBackgroundPosition(const StyleModel& model, const std::string& raw) {
+    const std::vector<std::string> tokens = detail::tokenizeTopLevel(raw);
+    if (tokens.empty() || tokens.size() > 2) return std::nullopt;
+    if (tokens.size() == 1) {
+        const std::string value = lower(trim(tokens.front()));
+        if (value == "top" || value == "bottom") return BackgroundPosition{{0.f, .5f}, *parsePositionVertical(model, value)};
+        const std::optional<Length> x = parsePositionHorizontal(model, tokens.front());
+        return x ? std::optional<BackgroundPosition>(BackgroundPosition{*x, {0.f, .5f}}) : std::nullopt;
+    }
+
+    std::optional<Length> x = parsePositionHorizontal(model, tokens[0]);
+    std::optional<Length> y = parsePositionVertical(model, tokens[1]);
+    if (!x || !y) {
+        x = parsePositionHorizontal(model, tokens[1]);
+        y = parsePositionVertical(model, tokens[0]);
+    }
+    return x && y ? std::optional<BackgroundPosition>(BackgroundPosition{*x, *y}) : std::nullopt;
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundPositions(const StyleModel& model, const std::string& raw) {
+    return parseBackgroundLayerList(raw, [&model](const std::string& value) -> std::optional<BackgroundLayer> {
+        const std::optional<BackgroundPosition> position = parseBackgroundPosition(model, value);
+        if (!position) return std::nullopt;
+        BackgroundLayer layer;
+        layer.position = *position;
+        return layer;
+    });
+}
+
+std::optional<BackgroundSize> parseBackgroundSize(const StyleModel& model, const std::string& raw) {
+    const std::vector<std::string> tokens = detail::tokenizeTopLevel(raw);
+    if (tokens.size() == 1) {
+        const std::string value = lower(trim(tokens.front()));
+        if (value == "cover") return BackgroundSize{BackgroundSizeMode::Cover};
+        if (value == "contain") return BackgroundSize{BackgroundSizeMode::Contain};
+        if (value == "auto") return BackgroundSize{};
+    }
+    if (tokens.empty() || tokens.size() > 2) return std::nullopt;
+    if (tokens.size() == 2 && lower(trim(tokens[0])) == "auto" && lower(trim(tokens[1])) == "auto") return BackgroundSize{};
+    const auto parse = [&model](const std::string& value) -> std::optional<Length> {
+        if (lower(trim(value)) == "auto") return std::optional<Length>{};
+        const std::optional<Length> length = model.parseLengthValue(value);
+        return length && length->pixels >= 0.f && length->percent >= 0.f ? length : std::nullopt;
+    };
+    const std::optional<Length> width = parse(tokens[0]);
+    const std::optional<Length> height = parse(tokens.size() == 1 ? "auto" : tokens[1]);
+    if ((!width && lower(trim(tokens[0])) != "auto") || (!height && tokens.size() == 2 && lower(trim(tokens[1])) != "auto")) return std::nullopt;
+    return BackgroundSize{BackgroundSizeMode::Explicit, width, height};
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundSizes(const StyleModel& model, const std::string& raw) {
+    return parseBackgroundLayerList(raw, [&model](const std::string& value) -> std::optional<BackgroundLayer> {
+        const std::optional<BackgroundSize> size = parseBackgroundSize(model, value);
+        if (!size) return std::nullopt;
+        BackgroundLayer layer;
+        layer.size = *size;
+        return layer;
+    });
+}
+
+std::optional<BackgroundRepeat> parseBackgroundRepeat(const std::string& raw) {
+    const std::vector<std::string> tokens = detail::tokenizeTopLevel(raw);
+    if (tokens.size() == 1) {
+        const std::string value = lower(trim(tokens.front()));
+        if (value == "repeat") return BackgroundRepeat::Repeat;
+        if (value == "no-repeat") return BackgroundRepeat::NoRepeat;
+        if (value == "repeat-x") return BackgroundRepeat::RepeatX;
+        if (value == "repeat-y") return BackgroundRepeat::RepeatY;
+    }
+    if (tokens.size() == 2 && lower(trim(tokens[0])) == "repeat" && lower(trim(tokens[1])) == "no-repeat") return BackgroundRepeat::RepeatX;
+    if (tokens.size() == 2 && lower(trim(tokens[0])) == "no-repeat" && lower(trim(tokens[1])) == "repeat") return BackgroundRepeat::RepeatY;
+    return std::nullopt;
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundRepeats(const std::string& raw) {
+    return parseBackgroundLayerList(raw, [](const std::string& value) -> std::optional<BackgroundLayer> {
+        const std::optional<BackgroundRepeat> repeat = parseBackgroundRepeat(value);
+        if (!repeat) return std::nullopt;
+        BackgroundLayer layer;
+        layer.repeat = *repeat;
+        return layer;
+    });
+}
+
+std::optional<BackgroundBox> parseBackgroundBox(const std::string& raw) {
+    const std::string value = lower(trim(raw));
+    if (value == "border-box") return BackgroundBox::BorderBox;
+    if (value == "padding-box") return BackgroundBox::PaddingBox;
+    if (value == "content-box") return BackgroundBox::ContentBox;
+    return std::nullopt;
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundBoxes(const std::string& raw) {
+    return parseBackgroundLayerList(raw, [](const std::string& value) -> std::optional<BackgroundLayer> {
+        const std::optional<BackgroundBox> box = parseBackgroundBox(value);
+        if (!box) return std::nullopt;
+        BackgroundLayer layer;
+        layer.origin = *box;
+        layer.clip = *box;
+        return layer;
+    });
+}
+
+std::optional<std::vector<BackgroundLayer>> parseBackgroundAttachments(const std::string& raw) {
+    return parseBackgroundLayerList(raw, [](const std::string& value) -> std::optional<BackgroundLayer> {
+        const std::string token = lower(trim(value));
+        BackgroundLayer layer;
+        if (token == "scroll") layer.attachment = BackgroundAttachment::Scroll;
+        else if (token == "fixed") layer.attachment = BackgroundAttachment::Fixed;
+        else if (token == "local") layer.attachment = BackgroundAttachment::Local;
+        else return std::nullopt;
+        return layer;
+    });
+}
+
+std::optional<BackgroundAttachment> parseBackgroundAttachment(const std::string& raw) {
+    const std::string token = lower(trim(raw));
+    if (token == "scroll") return BackgroundAttachment::Scroll;
+    if (token == "fixed") return BackgroundAttachment::Fixed;
+    if (token == "local") return BackgroundAttachment::Local;
+    return std::nullopt;
+}
+
+void copyLayerComponent(BackgroundLayer& destination, const BackgroundLayer& source, StyleImageComponent component) {
+    switch (component) {
+        case StyleImageComponent::Image: destination.resource = source.resource, destination.gradient = source.gradient; break;
+        case StyleImageComponent::Position: destination.position = source.position; break;
+        case StyleImageComponent::Size: destination.size = source.size; break;
+        case StyleImageComponent::Repeat: destination.repeat = source.repeat; break;
+        case StyleImageComponent::Origin: destination.origin = source.origin; break;
+        case StyleImageComponent::Clip: destination.clip = source.clip; break;
+        case StyleImageComponent::Attachment: destination.attachment = source.attachment; break;
+        case StyleImageComponent::All:
+        case StyleImageComponent::Mode:
+        case StyleImageComponent::Composite:
+        case StyleImageComponent::Type: break;
+    }
+}
+
+void copyLayerComponent(MaskLayer& destination, const MaskLayer& source, StyleImageComponent component) {
+    switch (component) {
+        case StyleImageComponent::Image:
+            destination.image.resource = source.image.resource, destination.image.gradient = source.image.gradient;
+            break;
+        case StyleImageComponent::Position: destination.image.position = source.image.position; break;
+        case StyleImageComponent::Size: destination.image.size = source.image.size; break;
+        case StyleImageComponent::Repeat: destination.image.repeat = source.image.repeat; break;
+        case StyleImageComponent::Origin: destination.image.origin = source.image.origin; break;
+        case StyleImageComponent::Clip: destination.image.clip = source.image.clip; break;
+        case StyleImageComponent::Attachment: destination.image.attachment = source.image.attachment; break;
+        case StyleImageComponent::Mode: destination.mode = source.mode; break;
+        case StyleImageComponent::Composite: destination.composite = source.composite; break;
+        case StyleImageComponent::Type: destination.type = source.type; break;
+        case StyleImageComponent::All: break;
+    }
+}
+
+template<typename Layer, typename Value>
+void applyLayerComponent(std::vector<Layer>& destination, const Value& value, StyleImageComponent component) {
+    const auto& source = value.layers;
+    if (component == StyleImageComponent::All) {
+        destination = source;
+        return;
+    }
+    if (source.empty()) return;
+    if (destination.empty()) destination.resize(source.size());
+    else if (component == StyleImageComponent::Image && destination.size() != source.size()) {
+        const std::size_t previousSize = destination.size();
+        std::vector<Layer> normalized(source.size());
+        for (std::size_t index = 0; index < normalized.size() && previousSize > 0; ++index) normalized[index] = destination[index % previousSize];
+        destination = std::move(normalized);
+    } else if (destination.size() < source.size()) {
+        const std::size_t previousSize = destination.size();
+        destination.resize(source.size());
+        for (std::size_t index = previousSize; index < destination.size(); ++index) destination[index] = destination[index % previousSize];
+    }
+    for (std::size_t index = 0; index < destination.size(); ++index) copyLayerComponent(destination[index], source[index % source.size()], component);
+}
+
+void applyBackgroundImages(ComputedStyle& style, const StyleValue& value) {
+    const StyleImageLayers& layers = std::get<StyleImageLayers>(value);
+    applyLayerComponent(style.backgroundLayers, layers, layers.component);
+}
+
+void applyMaskComponent(std::vector<MaskLayer>& destination, const StyleMaskLayers& value) {
+    applyLayerComponent(destination, value, value.component);
+}
+
+MaskLayer makeMaskLayer(BackgroundLayer image) {
+    MaskLayer result;
+    result.image = std::move(image);
+    result.image.origin = BackgroundBox::BorderBox;
+    return result;
+}
+
+std::vector<MaskLayer> makeMaskLayers(const std::vector<BackgroundLayer>& images) {
+    std::vector<MaskLayer> result;
+    result.reserve(images.size());
+    for (const BackgroundLayer& image : images) result.push_back(makeMaskLayer(image));
+    return result;
+}
+
+std::optional<std::vector<MaskLayer>> parseMaskImages(const StyleModel& model, const std::string& raw) {
+    const std::optional<std::vector<BackgroundLayer>> images =
+        parseBackgroundLayerList(raw, [&model](const std::string& value) { return parseBackgroundImage(model, value); });
+    if (!images) return std::nullopt;
+    return makeMaskLayers(*images);
+}
+
+CompileResult compileBackgroundImage(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundImages(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, StyleImageComponent::Image});
+}
+
+CompileResult compileBackgroundPosition(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundPositions(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, StyleImageComponent::Position});
+}
+
+CompileResult compileBackgroundSize(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundSizes(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, StyleImageComponent::Size});
+}
+
+CompileResult compileBackgroundRepeat(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundRepeats(context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, StyleImageComponent::Repeat});
+}
+
+CompileResult compileBackgroundBox(detail::StyleCompileContext& context, StyleImageComponent component) {
+    const auto parsed = parseBackgroundBoxes(context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, component});
+}
+
+CompileResult compileBackgroundOrigin(detail::StyleCompileContext& context) {
+    return compileBackgroundBox(context, StyleImageComponent::Origin);
+}
+
+CompileResult compileBackgroundClip(detail::StyleCompileContext& context) {
+    return compileBackgroundBox(context, StyleImageComponent::Clip);
+}
+
+CompileResult compileBackgroundAttachment(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundAttachments(context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleImageLayers{*parsed, StyleImageComponent::Attachment});
+}
+
+CompileResult compileMaskImage(detail::StyleCompileContext& context) {
+    const auto parsed = parseMaskImages(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleMaskLayers{*parsed, StyleImageComponent::Image});
+}
+
+CompileResult compileMaskPosition(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundPositions(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleMaskLayers{makeMaskLayers(*parsed), StyleImageComponent::Position});
+}
+
+CompileResult compileMaskSize(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundSizes(context.model, context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleMaskLayers{makeMaskLayers(*parsed), StyleImageComponent::Size});
+}
+
+CompileResult compileMaskRepeat(detail::StyleCompileContext& context) {
+    const auto parsed = parseBackgroundRepeats(context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleMaskLayers{makeMaskLayers(*parsed), StyleImageComponent::Repeat});
+}
+
+CompileResult compileMaskBox(detail::StyleCompileContext& context, StyleImageComponent component) {
+    const auto parsed = parseBackgroundBoxes(context.value);
+    if (!parsed) return context.invalid();
+    return context.compiled(StyleMaskLayers{makeMaskLayers(*parsed), component});
+}
+
+CompileResult compileMaskOrigin(detail::StyleCompileContext& context) {
+    return compileMaskBox(context, StyleImageComponent::Origin);
+}
+
+CompileResult compileMaskClip(detail::StyleCompileContext& context) {
+    return compileMaskBox(context, StyleImageComponent::Clip);
+}
+
+std::optional<MaskMode> parseMaskMode(const std::string& raw) {
+    const std::string token = lower(trim(raw));
+    if (token == "match-source") return MaskMode::MatchSource;
+    if (token == "alpha") return MaskMode::Alpha;
+    if (token == "luminance") return MaskMode::Luminance;
+    return std::nullopt;
+}
+
+std::optional<MaskComposite> parseMaskComposite(const std::string& raw) {
+    const std::string token = lower(trim(raw));
+    if (token == "add") return MaskComposite::Add;
+    if (token == "subtract") return MaskComposite::Subtract;
+    if (token == "intersect") return MaskComposite::Intersect;
+    if (token == "exclude") return MaskComposite::Exclude;
+    return std::nullopt;
+}
+
+std::optional<MaskType> parseMaskType(const std::string& raw) {
+    const std::string token = lower(trim(raw));
+    if (token == "luminance") return MaskType::Luminance;
+    if (token == "alpha") return MaskType::Alpha;
+    return std::nullopt;
+}
+
+template<typename Enum> CompileResult compileMaskEnum(detail::StyleCompileContext& context, StyleImageComponent component,
+                                                      std::optional<Enum> (*parse)(const std::string&), Enum MaskLayer::* member) {
+    const std::vector<std::string> values = detail::splitTopLevel(context.value, ',');
+    if (values.empty()) return context.invalid();
+    std::vector<MaskLayer> layers;
+    layers.reserve(values.size());
+    for (const std::string& value : values) {
+        MaskLayer layer;
+        const std::optional<Enum> parsed = parse(value);
+        if (!parsed) return context.invalid();
+        layer.*member = *parsed;
+        layers.push_back(std::move(layer));
+    }
+    return context.compiled(StyleMaskLayers{std::move(layers), component});
+}
+
+CompileResult compileMaskMode(detail::StyleCompileContext& context) {
+    return compileMaskEnum(context, StyleImageComponent::Mode, parseMaskMode, &MaskLayer::mode);
+}
+
+CompileResult compileMaskComposite(detail::StyleCompileContext& context) {
+    return compileMaskEnum(context, StyleImageComponent::Composite, parseMaskComposite, &MaskLayer::composite);
+}
+
+CompileResult compileMaskType(detail::StyleCompileContext& context) {
+    return compileMaskEnum(context, StyleImageComponent::Type, parseMaskType, &MaskLayer::type);
+}
+
+struct ParsedImageLayer {
+    BackgroundLayer image;
+    std::vector<BackgroundBox> boxes;
+    std::vector<std::string> extras;
+    bool repeatSpecified = false;
+    bool attachmentSpecified = false;
+};
+
+std::optional<ParsedImageLayer> parseImageLayer(const StyleModel& model, const std::string& raw) {
+    const std::vector<std::string> tokens = detail::tokenizeTopLevel(raw, true);
+    if (tokens.empty()) return std::nullopt;
+
+    ParsedImageLayer result;
+    std::vector<std::string> positions;
+    std::vector<std::string> sizes;
+    bool afterSlash = false;
+    bool sawImage = false;
+    for (std::size_t index = 0; index < tokens.size(); ++index) {
+        const std::string& token = tokens[index];
+        const auto parseRepeat = [&]() -> std::optional<BackgroundRepeat> {
+            if (index + 1 < tokens.size() && tokens[index + 1] != "/") {
+                if (const std::optional<BackgroundRepeat> repeat = parseBackgroundRepeat(token + " " + tokens[index + 1])) {
+                    ++index;
+                    return repeat;
+                }
+            }
+            return parseBackgroundRepeat(token);
+        };
+        if (token == "/") {
+            if (afterSlash) return std::nullopt;
+            afterSlash = true;
+        } else if (afterSlash) {
+            if (const std::optional<BackgroundRepeat> repeat = parseRepeat()) {
+                if (result.repeatSpecified) return std::nullopt;
+                result.image.repeat = *repeat;
+                result.repeatSpecified = true;
+            } else if (const std::optional<BackgroundBox> box = parseBackgroundBox(token)) result.boxes.push_back(*box);
+            else if (const std::optional<BackgroundAttachment> attachment = parseBackgroundAttachment(token)) {
+                if (result.attachmentSpecified) return std::nullopt;
+                result.image.attachment = *attachment;
+                result.attachmentSpecified = true;
+            } else if (parseBackgroundSize(model, token)) sizes.push_back(token);
+            else result.extras.push_back(token);
+        } else if (const std::optional<BackgroundLayer> image = parseBackgroundImage(model, token)) {
+            if (sawImage) return std::nullopt;
+            result.image.resource = image->resource;
+            result.image.gradient = image->gradient;
+            sawImage = true;
+        } else if (const std::optional<BackgroundRepeat> repeat = parseRepeat()) {
+            if (result.repeatSpecified) return std::nullopt;
+            result.image.repeat = *repeat;
+            result.repeatSpecified = true;
+        } else if (const std::optional<BackgroundBox> box = parseBackgroundBox(token)) result.boxes.push_back(*box);
+        else if (const std::optional<BackgroundAttachment> attachment = parseBackgroundAttachment(token)) {
+            if (result.attachmentSpecified) return std::nullopt;
+            result.image.attachment = *attachment;
+            result.attachmentSpecified = true;
+        } else if (isPositionToken(token)) positions.push_back(token);
+        else result.extras.push_back(token);
+    }
+    if (positions.size() > 2 || sizes.size() > 2 || (afterSlash && sizes.empty())) return std::nullopt;
+    if (!positions.empty()) {
+        const std::optional<BackgroundPosition> position =
+            parseBackgroundPosition(model, positions[0] + (positions.size() > 1 ? " " + positions[1] : ""));
+        if (!position) return std::nullopt;
+        result.image.position = *position;
+    }
+    if (!sizes.empty()) {
+        const std::optional<BackgroundSize> size = parseBackgroundSize(model, sizes[0] + (sizes.size() > 1 ? " " + sizes[1] : ""));
+        if (!size) return std::nullopt;
+        result.image.size = *size;
+    }
+    if (result.boxes.size() > 2) return std::nullopt;
+    return result;
+}
+
+bool applyImageBoxes(BackgroundLayer& image, const std::vector<BackgroundBox>& boxes, BackgroundBox defaultOrigin, BackgroundBox defaultClip) {
+    if (boxes.empty()) {
+        image.origin = defaultOrigin;
+        image.clip = defaultClip;
+    } else if (boxes.size() == 1) image.origin = image.clip = boxes.front();
+    else if (boxes.size() == 2) {
+        image.origin = boxes[0];
+        image.clip = boxes[1];
+    } else return false;
+    return true;
+}
+
+CompileResult compileBackground(detail::StyleCompileContext& context) {
+    const std::vector<std::string> layers = detail::splitTopLevel(context.value, ',');
+    if (layers.empty()) return context.invalid();
+    std::vector<BackgroundLayer> parsed;
+    std::optional<StyleColorValue> color;
+    bool currentColor = false;
+    for (std::size_t layerIndex = 0; layerIndex < layers.size(); ++layerIndex) {
+        std::optional<ParsedImageLayer> parsedLayer = parseImageLayer(context.model, layers[layerIndex]);
+        if (!parsedLayer || !applyImageBoxes(parsedLayer->image, parsedLayer->boxes, BackgroundBox::PaddingBox, BackgroundBox::BorderBox))
+            return context.invalid();
+        for (const std::string& token : parsedLayer->extras) {
+            if (const std::optional<StyleColorValue> parsedColor = context.colorValue(token)) {
+                if (layerIndex + 1 != layers.size() || color) return context.invalid();
+                color = *parsedColor;
+            } else if (lower(trim(token)) == "currentcolor") {
+                if (layerIndex + 1 != layers.size() || color || currentColor) return context.invalid();
+                currentColor = true;
+            } else return context.invalid();
+        }
+        parsed.push_back(std::move(parsedLayer->image));
+    }
+    StylePaint paint{Color(0.f, 0.f, 0.f, 0.f)};
+    if (color) {
+        if (const auto solid = std::get_if<Color>(&*color)) paint.color = *solid;
+        else if (const auto current = std::get_if<LightDarkColor>(&*color)) {
+            paint.color = current->dark;
+            paint.lightDarkColor = *current;
+        }
+    }
+    paint.currentColor = currentColor;
+    std::vector<StyleDeclaration> declarations;
+    declarations.push_back(makeDeclaration("background-color", paint));
+    const auto imageValue = [&parsed](StyleImageComponent component) { return StyleImageLayers{parsed, component}; };
+    declarations.push_back(makeDeclaration("background-image", imageValue(StyleImageComponent::Image)));
+    declarations.push_back(makeDeclaration("background-position", imageValue(StyleImageComponent::Position)));
+    declarations.push_back(makeDeclaration("background-size", imageValue(StyleImageComponent::Size)));
+    declarations.push_back(makeDeclaration("background-repeat", imageValue(StyleImageComponent::Repeat)));
+    declarations.push_back(makeDeclaration("background-origin", imageValue(StyleImageComponent::Origin)));
+    declarations.push_back(makeDeclaration("background-clip", imageValue(StyleImageComponent::Clip)));
+    declarations.push_back(makeDeclaration("background-attachment", imageValue(StyleImageComponent::Attachment)));
+    return declarations;
+}
+
+CompileResult compileMask(detail::StyleCompileContext& context) {
+    const std::vector<std::string> layers = detail::splitTopLevel(context.value, ',');
+    if (layers.empty()) return context.invalid();
+    std::vector<MaskLayer> parsed;
+    for (const std::string& rawLayer : layers) {
+        std::optional<ParsedImageLayer> parsedLayer = parseImageLayer(context.model, rawLayer);
+        if (!parsedLayer
+            || parsedLayer->attachmentSpecified
+            || !applyImageBoxes(parsedLayer->image, parsedLayer->boxes, BackgroundBox::BorderBox, BackgroundBox::BorderBox))
+            return context.invalid();
+        MaskLayer layer;
+        layer.image = std::move(parsedLayer->image);
+        bool modeSpecified = false;
+        bool compositeSpecified = false;
+        for (const std::string& token : parsedLayer->extras) {
+            if (const std::optional<MaskMode> mode = parseMaskMode(token)) {
+                if (modeSpecified) return context.invalid();
+                layer.mode = *mode;
+                modeSpecified = true;
+            } else if (const std::optional<MaskComposite> composite = parseMaskComposite(token)) {
+                if (compositeSpecified) return context.invalid();
+                layer.composite = *composite;
+                compositeSpecified = true;
+            } else return context.invalid();
+        }
+        parsed.push_back(std::move(layer));
+    }
+    return context.compiled(StyleMaskLayers{std::move(parsed), StyleImageComponent::All});
+}
+
 CompileResult compilePaint(detail::StyleCompileContext& context) {
     auto& [model, property, value, selector, result, sourceName] = context;
     if (const std::optional<Gradient> gradient = model.parseGradient(value)) return context.compiled(StylePaint{Color(), *gradient});
@@ -415,18 +1047,6 @@ CompileResult compileBorder(detail::StyleCompileContext& context) {
 CompileResult compileBorderStyle(detail::StyleCompileContext& context) {
     const std::optional<BorderStyle> parsed = parseBorderStyle(context.value);
     return parsed ? context.compiled(*parsed) : context.invalid();
-}
-
-CompileResult compileStroke(detail::StyleCompileContext& context) {
-    auto& [model, property, value, selector, result, sourceName] = context;
-    const std::vector<std::string> tokens = context.tokens();
-    if (tokens.size() != 2) return context.invalid();
-    const auto width = context.number(tokens[0]);
-    if (!width || *width < 0.f) return context.invalid();
-    const auto parsed = context.colorValue(tokens[1]);
-    if (!parsed) return context.invalid();
-    if (const auto color = std::get_if<Color>(&*parsed)) return context.compiled(StyleIconStroke{*width, *color});
-    return context.compiled(StyleIconStroke{*width, Color(0.f, 0.f, 0.f, 0.f), std::get<LightDarkColor>(*parsed)});
 }
 
 CompileResult compileEdges(detail::StyleCompileContext& context) {
@@ -887,7 +1507,40 @@ CompileResult compileCursor(detail::StyleCompileContext& context) {
         {"context-menu", CursorStyle::ContextMenu},
         {"cell", CursorStyle::Cell},
     }};
-    return compileAlignment(context, value, sCursorValues);
+    const auto parseKeyword = [](const std::string& raw) -> std::optional<CursorStyle> {
+        const std::string normalized = lower(trim(raw));
+        const auto found =
+            std::find_if(sCursorValues.begin(), sCursorValues.end(), [&normalized](const auto& entry) { return entry.first == normalized; });
+        return found == sCursorValues.end() ? std::nullopt : std::optional<CursorStyle>(found->second);
+    };
+
+    const std::vector<std::string> candidates = detail::splitTopLevel(value, ',');
+    if (candidates.size() == 1) {
+        const std::optional<CursorStyle> keyword = parseKeyword(candidates.front());
+        return keyword ? context.compiled(CursorValue{*keyword, {}}) : context.invalid();
+    }
+    const auto parseHotspot = [](const std::string& raw) -> std::optional<float> {
+        const std::string token = trim(raw);
+        char* end = nullptr;
+        const float parsed = std::strtof(token.c_str(), &end);
+        if (end == token.c_str() || *end != '\0' || !std::isfinite(parsed)) return std::nullopt;
+        return parsed;
+    };
+    std::vector<CursorImage> images;
+    for (std::size_t index = 0; index + 1 < candidates.size(); ++index) {
+        const std::vector<std::string> tokens = detail::tokenizeTopLevel(candidates[index]);
+        if (tokens.size() != 1 && tokens.size() != 3) return context.invalid();
+        const std::optional<std::string> resource = parseCSSUrl(tokens.front());
+        if (!resource) return context.invalid();
+        CursorImage image;
+        image.resource = *resource;
+        if (tokens.size() > 1) image.hotspotX = parseHotspot(tokens[1]);
+        if (tokens.size() > 2) image.hotspotY = parseHotspot(tokens[2]);
+        if ((tokens.size() > 1 && !image.hotspotX) || (tokens.size() > 2 && !image.hotspotY)) return context.invalid();
+        images.push_back(std::move(image));
+    }
+    const std::optional<CursorStyle> fallback = parseKeyword(candidates.back());
+    return fallback && !images.empty() ? context.compiled(CursorValue{*fallback, std::move(images)}) : context.invalid();
 }
 
 CompileResult compileDimension(detail::StyleCompileContext& context) {
@@ -987,11 +1640,29 @@ template<auto Member> void copyMember(ComputedStyle& style, const ComputedStyle&
     style.*Member = parent.*Member;
 }
 
-void copyBackground(ComputedStyle& style, const ComputedStyle& parent) {
+void copyBackgroundColor(ComputedStyle& style, const ComputedStyle& parent) {
     style.backgroundColor = parent.backgroundColor;
     style.backgroundColorLightDark = parent.backgroundColorLightDark;
     style.backgroundGradient = parent.backgroundGradient;
     style.backgroundColorCurrent = parent.backgroundColorCurrent;
+}
+
+void copyBackgroundLayers(ComputedStyle& style, const ComputedStyle& parent) {
+    style.backgroundLayers = parent.backgroundLayers;
+}
+
+void copyMask(ComputedStyle& style, const ComputedStyle& parent) {
+    style.maskLayers = parent.maskLayers;
+}
+
+void copyCursor(ComputedStyle& style, const ComputedStyle& parent) {
+    style.cursor = parent.cursor;
+    style.cursorImages = parent.cursorImages;
+}
+
+void inheritCursor(ComputedStyle& style, const ComputedStyle& parent) {
+    const auto flag = static_cast<InheritedStyleProperties>(InheritedStyleProperty::Cursor);
+    if ((style.specifiedInheritedProperties & flag) == 0) copyCursor(style, parent);
 }
 
 void copyBorder(ComputedStyle& style, const ComputedStyle& parent) {
@@ -1043,14 +1714,10 @@ void copySize(ComputedStyle& style, const ComputedStyle& parent) {
 }
 
 void copyStroke(ComputedStyle& style, const ComputedStyle& parent) {
-    style.svgStrokeWidth = parent.svgStrokeWidth;
-    style.iconStrokeColor = parent.iconStrokeColor;
-    style.iconStrokeColorLightDark = parent.iconStrokeColorLightDark;
-}
-
-void copyStrokeColor(ComputedStyle& style, const ComputedStyle& parent) {
-    style.iconStrokeColor = parent.iconStrokeColor;
-    style.iconStrokeColorLightDark = parent.iconStrokeColorLightDark;
+    style.strokeColor = parent.strokeColor;
+    style.strokeColorLightDark = parent.strokeColorLightDark;
+    style.strokeColorCurrent = parent.strokeColorCurrent;
+    style.strokeGradient = parent.strokeGradient;
 }
 
 void copyStrokeLinecap(ComputedStyle& style, const ComputedStyle& parent) {
@@ -1120,6 +1787,89 @@ void resetColor(ComputedStyle& style) {
     style.colorLightDark = initial.colorLightDark;
 }
 
+void resetBackgroundImages(ComputedStyle& style) {
+    style.backgroundLayers = {BackgroundLayer{}};
+}
+
+void resetBackgroundPositions(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.position = {};
+}
+
+void resetBackgroundSizes(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.size = {};
+}
+
+void resetBackgroundRepeats(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.repeat = BackgroundRepeat::Repeat;
+}
+
+void resetBackgroundOrigins(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.origin = BackgroundBox::PaddingBox;
+}
+
+void resetBackgroundClips(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.clip = BackgroundBox::BorderBox;
+}
+
+void resetBackgroundAttachments(ComputedStyle& style) {
+    if (style.backgroundLayers.empty()) style.backgroundLayers.emplace_back();
+    for (BackgroundLayer& layer : style.backgroundLayers) layer.attachment = BackgroundAttachment::Scroll;
+}
+
+void resetMaskImages(ComputedStyle& style) {
+    style.maskLayers = {MaskLayer{}};
+}
+
+void resetMaskPositions(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.image.position = {};
+}
+
+void resetMaskSizes(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.image.size = {};
+}
+
+void resetMaskRepeats(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.image.repeat = BackgroundRepeat::Repeat;
+}
+
+void resetMaskOrigins(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.image.origin = BackgroundBox::BorderBox;
+}
+
+void resetMaskClips(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.image.clip = BackgroundBox::BorderBox;
+}
+
+void resetMaskModes(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.mode = MaskMode::MatchSource;
+}
+
+void resetMaskComposites(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.composite = MaskComposite::Add;
+}
+
+void resetMaskTypes(ComputedStyle& style) {
+    if (style.maskLayers.empty()) style.maskLayers.emplace_back();
+    for (MaskLayer& layer : style.maskLayers) layer.type = MaskType::Alpha;
+}
+
+void resetCursor(ComputedStyle& style) {
+    style.cursor = CursorStyle::Auto;
+    style.cursorImages.clear();
+}
+
 void resetStrokeLinecap(ComputedStyle& style) {
     const ComputedStyle initial;
     style.svgStrokeCap = initial.svgStrokeCap;
@@ -1155,6 +1905,14 @@ void applyPaint(Color& color, std::optional<LightDarkColor>& lightDarkColor, std
 
 void applyBackground(ComputedStyle& style, const StyleValue& value) {
     applyPaint(style.backgroundColor, style.backgroundColorLightDark, style.backgroundGradient, style.backgroundColorCurrent, value);
+}
+void applyMask(ComputedStyle& style, const StyleValue& value) {
+    applyMaskComponent(style.maskLayers, std::get<StyleMaskLayers>(value));
+}
+void applyCursor(ComputedStyle& style, const StyleValue& value) {
+    const CursorValue& cursor = std::get<CursorValue>(value);
+    style.cursor = cursor.style;
+    style.cursorImages = cursor.images;
 }
 void applyBorderWidth(ComputedStyle& style, const StyleValue& value) {
     style.borderWidth = std::get<EdgeInsets>(value);
@@ -1225,34 +1983,27 @@ void applyVerticalAlign(ComputedStyle& style, const StyleValue& value) {
 void applyFontWeight(ComputedStyle& style, const StyleValue& value) {
     style.fontWeight = static_cast<U16>(std::get<float>(value));
 }
-void applyIconStroke(ComputedStyle& style, const StyleValue& value) {
-    const StyleIconStroke& stroke = std::get<StyleIconStroke>(value);
-    style.svgStrokeWidth = Length{stroke.width};
-    style.iconStrokeColor = stroke.color;
-    style.iconStrokeColorLightDark = stroke.lightDarkColor;
-}
-void applyIconStrokeLinecap(ComputedStyle& style, const StyleValue& value) {
+void applyStrokeLinecap(ComputedStyle& style, const StyleValue& value) {
     style.svgStrokeCap = std::get<StrokeCap>(value);
     style.svgStrokeCapSet = true;
 }
-void applyIconStrokeWidth(ComputedStyle& style, const StyleValue& value) {
+void applyStrokeWidth(ComputedStyle& style, const StyleValue& value) {
     style.svgStrokeWidth = std::get<Length>(value);
 }
 
-void applyIconStrokeColor(ComputedStyle& style, const StyleValue& value) {
-    if (const auto lightDarkColor = std::get_if<LightDarkColor>(&value)) {
-        style.iconStrokeColor = lightDarkColor->dark;
-        style.iconStrokeColorLightDark = *lightDarkColor;
-    } else {
-        style.iconStrokeColor = std::get<Color>(value);
-        style.iconStrokeColorLightDark.reset();
-    }
+void applyStroke(ComputedStyle& style, const StyleValue& value) {
+    applyPaint(style.strokeColor, style.strokeColorLightDark, style.strokeGradient, style.strokeColorCurrent, value);
 }
 
 constexpr std::array<std::string_view, 2> kOverflowLonghands{"overflow-x", "overflow-y"};
 constexpr std::array<std::string_view, 2> kMinSizeLonghands{"min-height", "min-width"};
 constexpr std::array<std::string_view, 3> kFlexLonghands{"flex-grow", "flex-shrink", "flex-basis"};
 constexpr std::array<std::string_view, 5> kFontLonghands{"font-style", "font-weight", "font-size", "line-height", "font-family"};
+constexpr std::array<std::string_view, 8> kBackgroundLonghands{"background-color", "background-image",     "background-position",
+                                                               "background-size",  "background-repeat",    "background-origin",
+                                                               "background-clip",  "background-attachment"};
+constexpr std::array<std::string_view, 9> kMaskLonghands{"mask-image",  "mask-mode", "mask-position",  "mask-size", "mask-repeat",
+                                                         "mask-origin", "mask-clip", "mask-composite", "mask-type"};
 
 const detail::StylePropertyDefinition kPropertyDefinitions[] = {
     {"accent-color", compileAccentColor, applyAccentColor, resetMember<&ComputedStyle::accentColor>,
@@ -1265,7 +2016,23 @@ const detail::StylePropertyDefinition kPropertyDefinitions[] = {
      StylePropertyImpact::Paint | StylePropertyImpact::Inherited, false, InheritedStyleProperty::ColorScheme},
     {"box-sizing", compileBoxSizing, applyMember<&ComputedStyle::boxSizing>, resetMember<&ComputedStyle::boxSizing>, nullptr,
      copyMember<&ComputedStyle::boxSizing>, StylePropertyImpact::Layout},
-    {"background-color", compilePaint, applyBackground, resetWith<copyBackground>, nullptr, copyBackground, StylePropertyImpact::Paint},
+    {"background", compileBackground, nullptr, nullptr, nullptr, nullptr, StylePropertyImpact::Paint, false, InheritedStyleProperty::NotInherited,
+     std::span<const std::string_view>(kBackgroundLonghands)},
+    {"background-color", compilePaint, applyBackground, resetWith<copyBackgroundColor>, nullptr, copyBackgroundColor, StylePropertyImpact::Paint},
+    {"background-image", compileBackgroundImage, applyBackgroundImages, resetBackgroundImages, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-position", compileBackgroundPosition, applyBackgroundImages, resetBackgroundPositions, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-size", compileBackgroundSize, applyBackgroundImages, resetBackgroundSizes, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-repeat", compileBackgroundRepeat, applyBackgroundImages, resetBackgroundRepeats, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-origin", compileBackgroundOrigin, applyBackgroundImages, resetBackgroundOrigins, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-clip", compileBackgroundClip, applyBackgroundImages, resetBackgroundClips, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
+    {"background-attachment", compileBackgroundAttachment, applyBackgroundImages, resetBackgroundAttachments, nullptr, copyBackgroundLayers,
+     StylePropertyImpact::Paint},
     {"border", compileBorder, applyBorder, resetWith<copyBorder>, nullptr, copyBorder, StylePropertyImpact::Layout | StylePropertyImpact::Paint},
     {"border-color", compilePaint,
      [](ComputedStyle& style, const StyleValue& value) {
@@ -1281,8 +2048,7 @@ const detail::StylePropertyDefinition kPropertyDefinitions[] = {
      StylePropertyImpact::Layout | StylePropertyImpact::Paint},
     {"bottom", compilePosition, applyLengthToOptional<&ComputedStyle::bottom>, resetMember<&ComputedStyle::bottom>, nullptr,
      copyMember<&ComputedStyle::bottom>, StylePropertyImpact::Layout | StylePropertyImpact::Paint | StylePropertyImpact::HitTest},
-    {"cursor", compileCursor, applyMember<&ComputedStyle::cursor>, resetMember<&ComputedStyle::cursor>,
-     specifyInherited<InheritedStyleProperty::Cursor>, inheritMember<InheritedStyleProperty::Cursor, &ComputedStyle::cursor>,
+    {"cursor", compileCursor, applyCursor, resetCursor, specifyInherited<InheritedStyleProperty::Cursor>, inheritCursor,
      StylePropertyImpact::Paint | StylePropertyImpact::Inherited, false, InheritedStyleProperty::Cursor},
     {"display", compileDisplay, applyDisplay, resetDisplay, nullptr, copyDisplay,
      StylePropertyImpact::Layout | StylePropertyImpact::Paint | StylePropertyImpact::HitTest},
@@ -1301,6 +2067,17 @@ const detail::StylePropertyDefinition kPropertyDefinitions[] = {
      copyMember<&ComputedStyle::minWidth>},
     {"opacity", compileOpacity, applyMember<&ComputedStyle::opacity>, resetMember<&ComputedStyle::opacity>, nullptr,
      copyMember<&ComputedStyle::opacity>, StylePropertyImpact::Paint},
+    {"mask", compileMask, nullptr, nullptr, nullptr, nullptr, StylePropertyImpact::Paint, false, InheritedStyleProperty::NotInherited,
+     std::span<const std::string_view>(kMaskLonghands)},
+    {"mask-image", compileMaskImage, applyMask, resetMaskImages, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-mode", compileMaskMode, applyMask, resetMaskModes, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-position", compileMaskPosition, applyMask, resetMaskPositions, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-size", compileMaskSize, applyMask, resetMaskSizes, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-repeat", compileMaskRepeat, applyMask, resetMaskRepeats, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-origin", compileMaskOrigin, applyMask, resetMaskOrigins, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-clip", compileMaskClip, applyMask, resetMaskClips, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-composite", compileMaskComposite, applyMask, resetMaskComposites, nullptr, copyMask, StylePropertyImpact::Paint},
+    {"mask-type", compileMaskType, applyMask, resetMaskTypes, nullptr, copyMask, StylePropertyImpact::Paint},
     {"outline", compileOutline, applyOutline, resetMember<&ComputedStyle::outline>, nullptr, copyMember<&ComputedStyle::outline>,
      StylePropertyImpact::Paint},
     {"outline-offset", compileOutlineOffset, applyOutlineOffset, resetWith<copyOutlineOffset>, nullptr, copyOutlineOffset,
@@ -1403,10 +2180,9 @@ const detail::StylePropertyDefinition kPropertyDefinitions[] = {
     {"visibility", compileVisibility, applyMember<&ComputedStyle::visibility>, resetMember<&ComputedStyle::visibility>,
      specifyInherited<InheritedStyleProperty::Visibility>, inheritMember<InheritedStyleProperty::Visibility, &ComputedStyle::visibility>,
      StylePropertyImpact::Paint | StylePropertyImpact::Inherited | StylePropertyImpact::HitTest, false, InheritedStyleProperty::Visibility},
-    {"stroke", compileStroke, applyIconStroke, resetWith<copyStroke>, nullptr, copyStroke, StylePropertyImpact::Paint},
-    {"stroke-color", compileColorValue, applyIconStrokeColor, resetWith<copyStrokeColor>, nullptr, copyStrokeColor, StylePropertyImpact::Paint},
-    {"stroke-linecap", compileStrokeLinecap, applyIconStrokeLinecap, resetStrokeLinecap, nullptr, copyStrokeLinecap, StylePropertyImpact::Paint},
-    {"stroke-width", compileStrokeWidth, applyIconStrokeWidth, resetMember<&ComputedStyle::svgStrokeWidth>, nullptr,
+    {"stroke", compilePaint, applyStroke, resetWith<copyStroke>, nullptr, copyStroke, StylePropertyImpact::Paint},
+    {"stroke-linecap", compileStrokeLinecap, applyStrokeLinecap, resetStrokeLinecap, nullptr, copyStrokeLinecap, StylePropertyImpact::Paint},
+    {"stroke-width", compileStrokeWidth, applyStrokeWidth, resetMember<&ComputedStyle::svgStrokeWidth>, nullptr,
      copyMember<&ComputedStyle::svgStrokeWidth>, StylePropertyImpact::Paint},
 };
 } // namespace

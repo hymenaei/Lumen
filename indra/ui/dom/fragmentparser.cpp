@@ -18,7 +18,6 @@
 #include "html/elementfactory.h"
 #include "html/elementnames.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "llstring.h"
@@ -71,7 +70,6 @@ bool isValidHTMLAttribute(HTMLTag tag, std::string_view name, bool hasValue, std
         if (name == "type" || name == "name") return hasValue;
         if (name == "switch" || name == "checked") return true;
     }
-    if (tag == HTMLTag::Icon && name == "src") return hasValue;
     if (tag == HTMLTag::Label && name == "for") return hasValue && !value.empty() && !containsHTMLWhitespace(value);
     if (tag == HTMLTag::Floater && name == "resizeable") return true;
     return false;
@@ -180,10 +178,6 @@ private:
                 input->checked(true);
                 return true;
             }
-        }
-        if (auto* icon = dynamic_cast<HTMLIconElement*>(&element); icon && attribute.name == "src") {
-            icon->setName(attribute.value);
-            return true;
         }
         if (auto* label = dynamic_cast<HTMLLabelElement*>(&element); label && attribute.name == "for") {
             label->setTargetId(attribute.value);

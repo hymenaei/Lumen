@@ -167,6 +167,46 @@ struct Gradient {
     std::vector<GradientStop> stops;
 };
 
+enum class BackgroundRepeat { Repeat, NoRepeat, RepeatX, RepeatY };
+enum class BackgroundBox { BorderBox, PaddingBox, ContentBox };
+enum class BackgroundAttachment { Scroll, Fixed, Local };
+enum class BackgroundSizeMode { Auto, Cover, Contain, Explicit };
+
+struct BackgroundPosition {
+    Length x{0.f, 0.f};
+    Length y{0.f, 1.f};
+};
+
+struct BackgroundSize {
+    BackgroundSizeMode mode = BackgroundSizeMode::Auto;
+    std::optional<Length> width;
+    std::optional<Length> height;
+};
+
+struct BackgroundLayer {
+    std::string resource;
+    std::optional<Gradient> gradient;
+    BackgroundPosition position;
+    BackgroundSize size;
+    BackgroundRepeat repeat = BackgroundRepeat::Repeat;
+    BackgroundBox origin = BackgroundBox::PaddingBox;
+    BackgroundBox clip = BackgroundBox::BorderBox;
+    BackgroundAttachment attachment = BackgroundAttachment::Scroll;
+};
+
+enum class MaskMode { MatchSource, Alpha, Luminance };
+enum class MaskComposite { Add, Subtract, Intersect, Exclude };
+enum class MaskType { Luminance, Alpha };
+
+struct MaskLayer {
+    MaskLayer() { image.origin = BackgroundBox::BorderBox; }
+
+    BackgroundLayer image;
+    MaskMode mode = MaskMode::MatchSource;
+    MaskComposite composite = MaskComposite::Add;
+    MaskType type = MaskType::Alpha;
+};
+
 struct BoxShadow {
     float horizontal = 0.f;
     float vertical = 0.f;
@@ -260,6 +300,21 @@ enum class CursorStyle {
     ContextMenu,
     Cell
 };
+
+struct CursorImage {
+    std::string resource;
+    std::optional<float> hotspotX;
+    std::optional<float> hotspotY;
+
+    bool operator==(const CursorImage&) const = default;
+};
+
+struct CursorValue {
+    CursorStyle style = CursorStyle::Auto;
+    std::vector<CursorImage> images;
+
+    bool operator==(const CursorValue&) const = default;
+};
 enum class TextAlign { Left, Center, Right, Start, End };
 enum class TextOverflow { Clip, Ellipsis, EllipsisCenter };
 enum class TextWrap { Wrap, NoWrap };
@@ -310,9 +365,13 @@ struct ComputedStyle {
     Color color = Color(0.f, 0.f, 0.f, 1.f);
     std::optional<LightDarkColor> colorLightDark;
     AccentColor accentColor;
-    Color iconStrokeColor = Color(0.f, 0.f, 0.f, 1.f);
-    std::optional<LightDarkColor> iconStrokeColorLightDark;
+    Color strokeColor = Color(0.f, 0.f, 0.f, 1.f);
+    std::optional<LightDarkColor> strokeColorLightDark;
+    bool strokeColorCurrent = false;
+    std::optional<Gradient> strokeGradient;
     std::optional<Gradient> backgroundGradient;
+    std::vector<BackgroundLayer> backgroundLayers;
+    std::vector<MaskLayer> maskLayers;
     std::optional<Gradient> borderGradient;
     std::vector<BoxShadow> shadows;
     std::vector<Effect> effects;
@@ -372,6 +431,7 @@ struct ComputedStyle {
     ScrollbarColors scrollbarColor;
     PointerEvents pointerEvents = PointerEvents::Default;
     CursorStyle cursor = CursorStyle::Auto;
+    std::vector<CursorImage> cursorImages;
     InheritedStyleProperties specifiedInheritedProperties = 0;
     std::vector<std::string_view> explicitlyInheritedProperties;
 };

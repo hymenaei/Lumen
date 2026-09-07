@@ -11,7 +11,6 @@
 #include "floater_test_helpers.h"
 #include "html/button.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -29,7 +28,6 @@ using radia::ui::Element;
 using radia::ui::FixedTextMetrics;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLFloaterElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
@@ -68,9 +66,10 @@ std::unique_ptr<Element> makeParagraph(std::string text) {
     return paragraph;
 }
 
-HTMLIconElement& appendIcon(HTMLButtonElement& button, std::string name) {
-    auto icon = makeElement<HTMLIconElement>(std::move(name));
-    HTMLIconElement* result = icon.get();
+Element& appendIcon(HTMLButtonElement& button, std::string name) {
+    auto icon = makeElement<Element>("i");
+    Element* result = icon.get();
+    result->addClass("i-" + name);
     button.append(std::move(icon));
     return *result;
 }
@@ -88,7 +87,7 @@ TEST_F(LayoutEngineTest, MeasuresButtonContent) {
     StyleSheet styleSheet;
     constexpr char kButtonLayout[] =
         "button { position: relative; left: 10px; top: 10px; padding: 7px; gap: 6px; display: flex; flex-direction: row; "
-        "font-size: 13px; line-height: 18px; } button > icon { size: 14px; }";
+        "font-size: 13px; line-height: 18px; } button > i { size: 14px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kButtonLayout).ok());
     auto root = makeElementValue<HTMLPanelElement>();
     root.setRect({0.f, 0.f, 300.f, 200.f});
@@ -104,7 +103,7 @@ TEST_F(LayoutEngineTest, MeasuresButtonContent) {
     const auto runtimeChildren = nodes(result);
     ASSERT_EQ(runtimeChildren.size(), 2U);
     ASSERT_NE(runtimeChildren.begin()->asElement(), nullptr);
-    EXPECT_EQ(runtimeChildren.begin()->asElement()->elementName(), "icon");
+    EXPECT_EQ(runtimeChildren.begin()->asElement()->elementName(), "i");
     auto textChild = runtimeChildren.begin();
     ++textChild;
     ASSERT_NE(textChild->asText(), nullptr);
@@ -115,7 +114,7 @@ TEST_F(LayoutEngineTest, IgnoresFlexWhitespace) {
     StyleSheet styleSheet;
     constexpr char kButtonLayout[] =
         "button { width: 100px; height: 20px; padding: 0; gap: 6px; display: flex; flex-direction: row; justify-content: start; } "
-        "button > icon { size: 14px; }";
+        "button > i { size: 14px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kButtonLayout).ok());
 
     auto button = makeElementValue<HTMLButtonElement>();
@@ -123,7 +122,7 @@ TEST_F(LayoutEngineTest, IgnoresFlexWhitespace) {
     auto leadingWhitespace = std::make_unique<Text>("\n        ");
     Text* leadingWhitespacePtr = leadingWhitespace.get();
     button.append(std::move(leadingWhitespace));
-    HTMLIconElement& icon = appendIcon(button, "search");
+    Element& icon = appendIcon(button, "search");
     auto betweenWhitespace = std::make_unique<Text>("\n        ");
     Text* betweenWhitespacePtr = betweenWhitespace.get();
     button.append(std::move(betweenWhitespace));
@@ -168,12 +167,12 @@ TEST_F(LayoutEngineTest, PreservesInlineWhitespace) {
 TEST_F(LayoutEngineTest, CollapsesButtonWhitespace) {
     StyleSheet styleSheet;
     constexpr char kButtonLayout[] =
-        "button { display: inline-block; width: 100px; height: 40px; padding: 0; font-size: 10px; line-height: 10px; } button > icon { size: 16px; }";
+        "button { display: inline-block; width: 100px; height: 40px; padding: 0; font-size: 10px; line-height: 10px; } button > i { size: 16px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kButtonLayout).ok());
 
     auto button = makeElementValue<HTMLButtonElement>();
     button.setRect({0.f, 0.f, 100.f, 40.f});
-    HTMLIconElement& icon = appendIcon(button, "search");
+    Element& icon = appendIcon(button, "search");
     auto separator = std::make_unique<Text>("\n            ");
     Text* separatorPtr = separator.get();
     button.append(std::move(separator));
@@ -307,7 +306,7 @@ TEST_F(LayoutEngineTest, WrapsInlineSiblings) {
 TEST_F(LayoutEngineTest, CentersContentInWidth) {
     StyleSheet styleSheet;
     constexpr char kCenteredButtonLayout[] = "button { width: 128px; height: 32px; padding: 7px; gap: 6px; display: flex; flex-direction: row; "
-                                             "justify-content: center; line-height: 18px; } button > icon { size: 14px; }";
+                                             "justify-content: center; line-height: 18px; } button > i { size: 14px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kCenteredButtonLayout).ok());
     auto root = makeElementValue<HTMLPanelElement>();
     root.setRect({0.f, 0.f, 300.f, 200.f});
@@ -332,12 +331,12 @@ TEST_F(LayoutEngineTest, CentersContentInWidth) {
 TEST_F(LayoutEngineTest, UsesNormalButtonLayout) {
     StyleSheet styleSheet;
     constexpr char kButtonLayout[] =
-        "button { display: inline-block; width: 128px; height: 32px; padding: 7px; text-align: center; line-height: 18px; } button > icon { size: 14px; }";
+        "button { display: inline-block; width: 128px; height: 32px; padding: 7px; text-align: center; line-height: 18px; } button > i { size: 14px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kButtonLayout).ok());
 
     auto button = makeElementValue<HTMLButtonElement>();
     button.setRect({0.f, 0.f, 128.f, 32.f});
-    HTMLIconElement& icon = appendIcon(button, "search");
+    Element& icon = appendIcon(button, "search");
     auto label = std::make_unique<Text>("\n        Apply\n    ");
     Text* labelPtr = label.get();
     button.append(std::move(label));
@@ -584,11 +583,11 @@ TEST_F(LayoutEngineTest, CentersColumnChildWithAutoMargins) {
 TEST_F(LayoutEngineTest, CentersIconInButton) {
     StyleSheet styleSheet;
     constexpr char kButtonLayout[] = "button { size: 24px; padding: 20px; display: flex; flex-direction: row; justify-content: center; } "
-                                     "button > icon { size: 16px; }";
+                                     "button > i { size: 16px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kButtonLayout).ok());
     auto button = makeElementValue<HTMLButtonElement>();
     button.setRect({0.f, 0.f, 24.f, 24.f});
-    HTMLIconElement& icon = appendIcon(button, "search");
+    Element& icon = appendIcon(button, "search");
     LayoutEngine::layout(button, styleSheet, text);
     EXPECT_EQ(icon.rect().x, 4.f);
     EXPECT_EQ(icon.rect().y, 4.f);
@@ -1122,7 +1121,7 @@ TEST_F(LayoutEngineTest, CentersFloaterHeadChildren) {
     constexpr char kFloaterHead[] =
         "floater > head { height: 48px; display: flex; flex-direction: row; padding: 12px; } "
         "floater > head > title { height: 24px; display: flex; flex-direction: row; align-items: center; flex-grow: 1; line-height: 18px; } "
-        "floater > head > title > icon { size: 28px; } "
+        "floater > head > title > i { size: 28px; } "
         "floater > head > close { size: 24px; }";
     ASSERT_TRUE(styleSheet.loadRadia(kFloaterHead).ok());
 
@@ -1131,7 +1130,8 @@ TEST_F(LayoutEngineTest, CentersFloaterHeadChildren) {
     Element* head = floater.head();
     ASSERT_NE(head, nullptr);
     ASSERT_FALSE(head->children().empty());
-    auto icon = makeElement<HTMLIconElement>("search");
+    auto icon = makeElement<Element>("i");
+    icon->addClass("i-search");
     head->children().front()->append(std::move(icon));
     head->setRect({0.f, 0.f, 200.f, 48.f});
     LayoutEngine::layout(*head, styleSheet, text);

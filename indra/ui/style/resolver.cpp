@@ -8,6 +8,7 @@
 #include <optional>
 #include "css/rules.h"
 #include "css/stylesheet.h"
+#include "css/syntax.h"
 #include "dom/element.h"
 #include "html/elementnames.h"
 #include "style/property.h"
@@ -49,10 +50,39 @@ bool matchesAttribute(const StyleSelector& selector, const Element* element) {
     if (selector.attributes.empty()) return true;
     if (!element) return false;
     return std::all_of(selector.attributes.begin(), selector.attributes.end(), [element](const StyleAttributeSelector& attribute) {
-        const std::string* value = detail::styleAttribute(*element, attribute.name);
-        if (attribute.presence) return value != nullptr;
-        if (attribute.name == "name") return value && *value == attribute.value;
-        return value && canonicalizeHTMLName(*value) == canonicalizeHTMLName(attribute.value);
+        const Element::Attribute* serialized = element->attribute(attribute.name);
+        const std::string* styleValue = detail::styleAttribute(*element, attribute.name);
+        if (attribute.presence) return serialized != nullptr || styleValue != nullptr;
+        const std::string* value = serialized && serialized->value ? &*serialized->value : styleValue;
+        if (!value) return false;
+
+        std::string actual = *value;
+        std::string expected = attribute.value;
+        if (attribute.caseInsensitive || (!attribute.caseSensitivitySpecified && (attribute.name == "type" || attribute.name == "switch"))) {
+            actual = detail::lower(std::move(actual));
+            expected = detail::lower(std::move(expected));
+        }
+        switch (attribute.match) {
+            case StyleAttributeSelector::Match::Exact: return actual == expected;
+            case StyleAttributeSelector::Match::Prefix: return actual.rfind(expected, 0) == 0;
+            case StyleAttributeSelector::Match::Suffix:
+                return actual.size() >= expected.size() && actual.compare(actual.size() - expected.size(), expected.size(), expected) == 0;
+            case StyleAttributeSelector::Match::Substring: return actual.find(expected) != std::string::npos;
+            case StyleAttributeSelector::Match::IncludesHyphen:
+                return actual == expected || (actual.size() > expected.size() && actual.rfind(expected + '-', 0) == 0);
+            case StyleAttributeSelector::Match::IncludesWord: {
+                std::size_t start = 0;
+                while (start < actual.size()) {
+                    while (start < actual.size() && detail::isCSSWhitespace(actual[start])) ++start;
+                    const std::size_t end = actual.find_first_of(" \t\r\n\f", start);
+                    if (actual.substr(start, end == std::string::npos ? std::string::npos : end - start) == expected) return true;
+                    if (end == std::string::npos) break;
+                    start = end;
+                }
+                return false;
+            }
+        }
+        return false;
     });
 }
 
@@ -165,6 +195,25 @@ StyleRuleSet::StyleRuleSet(StyleModel&& model)
         const int right = specificity(rhs);
         return left == right ? lhs.sourceOrder < rhs.sourceOrder : left < right;
     });
+    const auto addResource = [this](const std::string& value, bool optional, bool cursor) {
+        if (value.empty()) return;
+        const auto found = std::find_if(mResourceReferences.begin(), mResourceReferences.end(),
+                                        [&value](const StyleResourceReference& reference) { return reference.value == value; });
+        if (found == mResourceReferences.end()) mResourceReferences.push_back({value, optional, cursor});
+        else {
+            found->optional = found->optional && optional;
+            found->cursor = found->cursor && cursor;
+        }
+    };
+    for (const StyleRule& rule : mRules)
+        for (const StyleDeclaration& declaration : rule.declarations) {
+            if (const auto* images = std::get_if<StyleImageLayers>(&declaration.value))
+                for (const BackgroundLayer& layer : images->layers) addResource(layer.resource, false, false);
+            else if (const auto* masks = std::get_if<StyleMaskLayers>(&declaration.value))
+                for (const MaskLayer& layer : masks->layers) addResource(layer.image.resource, true, false);
+            else if (const auto* cursor = std::get_if<CursorValue>(&declaration.value))
+                for (const CursorImage& image : cursor->images) addResource(image.resource, false, true);
+        }
     buildIndexes();
 }
 

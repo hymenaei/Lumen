@@ -39,6 +39,7 @@
 #include "v3dmath.h"
 #include "v2math.h"
 #include "llcursortypes.h"
+#include "llwindow.h"
 #include "llwindowcallbacks.h"
 #include "lltimer.h"
 #include "llmousehandler.h"
@@ -48,10 +49,12 @@
 #include "lltrace.h"
 #include "llsnapshotmodel.h"
 #include "nativeinput.h"
+#include "style/computedstyle.h"
 
 #include <boost/signals2.hpp>
 
 #include <functional>
+#include <cstdint>
 #include <memory>
 #include <optional>
 
@@ -532,6 +535,10 @@ private:
     LLPanel*        mChicletContainer = nullptr;
     LLPanel*        mTopInfoContainer = nullptr;
     LLVector2       mDisplayScale;
+    std::optional<radia::ui::CursorValue> mLastRadiaCursor;
+    std::optional<LLCursorImage> mLastRadiaCursorImage;
+    std::uint64_t mLastRadiaCursorGeneration = 0;
+    F32 mLastRadiaCursorScale = 0.f;
 
     LLCoordGL       mCurrentMousePoint;         // last mouse position in GL coords
     std::optional<radia::viewer::ui::NativePointerInput> mPendingPointerMove;

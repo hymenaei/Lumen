@@ -303,6 +303,15 @@ public:
         return surface().pointerCursor();
     }
 
+    std::optional<radia::ui::CursorValue> pointerCursorValue() {
+        if (!isInteractive()) return std::nullopt;
+        surface().refreshHover();
+        return surface().pointerCursorValue();
+    }
+
+    const std::string* resourceData(std::string_view reference) const { return mSystem.resourceData(reference); }
+    std::uint64_t generation() const { return mSystem.generation(); }
+
     void clearInteraction() {
         if (mInitialization != InitializationState::Uninitialized) surface().clearInteractionState();
         mPreviousFrameTime.reset();
@@ -555,6 +564,18 @@ bool Runtime::hasPointerCapture() const {
 
 std::optional<CursorStyle> Runtime::pointerCursor() {
     return mImpl->pointerCursor();
+}
+
+std::optional<radia::ui::CursorValue> Runtime::pointerCursorValue() {
+    return mImpl->pointerCursorValue();
+}
+
+const std::string* Runtime::resourceData(std::string_view reference) const {
+    return mImpl->resourceData(reference);
+}
+
+std::uint64_t Runtime::generation() const {
+    return mImpl->generation();
 }
 
 InputDispatchResult Runtime::pointerMove(const PointerEvent& event) {

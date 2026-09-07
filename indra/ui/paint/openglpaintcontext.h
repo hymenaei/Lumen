@@ -36,7 +36,6 @@ public:
     void paintNativeButton(const NativeButtonPaintRequest& request) override;
     void paintBox(const Rect& rect, const ComputedStyle& style, std::optional<TopBorderGap> topBorderGap = std::nullopt) override;
     void paintText(const std::string& text, const Rect& rect, const ComputedStyle& style) override;
-    void paintIcon(const std::string& name, const Rect& rect, const ComputedStyle& style, float scale) override;
 
 private:
     struct Impl;

@@ -39,10 +39,16 @@ struct StyleSize {
     Dimension width;
 };
 
-struct StyleIconStroke {
-    float width = 0.f;
-    Color color;
-    std::optional<LightDarkColor> lightDarkColor;
+enum class StyleImageComponent : std::uint8_t { All, Image, Position, Size, Repeat, Origin, Clip, Attachment, Mode, Composite, Type };
+
+struct StyleImageLayers {
+    std::vector<BackgroundLayer> layers;
+    StyleImageComponent component = StyleImageComponent::All;
+};
+
+struct StyleMaskLayers {
+    std::vector<MaskLayer> layers;
+    StyleImageComponent component = StyleImageComponent::All;
 };
 
 struct InitialStyleValue {};
@@ -55,12 +61,13 @@ struct StyleRule;
 
 namespace detail { struct StylePropertyDefinition; }
 
-using StyleValue = std::variant<InitialStyleValue, StyleWideKeyword, Color, LightDarkColor, StylePaint, StyleBorder, StyleSize, StyleIconStroke,
-                                EdgeInsets, MarginInsets, Dimension, Length, BorderRadii, std::optional<Length>, GapValue, std::vector<BoxShadow>,
-                                std::vector<Effect>, Outline, GridArea, Translate, std::optional<std::string>, float, int, bool, AppearanceMode,
-                                ColorScheme, BoxSizing, BorderStyle, FontFamily, TextAlign, TextOverflow, TextWrap, VerticalAlign, TextDecoration,
-                                DisplayMode, FlexDirection, PositionMode, JustifyContent, JustifySelf, AlignItems, AlignSelf, Overflow, ScrollbarMode,
-                                ScrollbarWidth, ScrollbarGutter, PointerEvents, CursorStyle, StrokeCap, Visibility, ScrollbarColors, AccentColor>;
+using StyleValue =
+    std::variant<InitialStyleValue, StyleWideKeyword, Color, LightDarkColor, AccentColor, ColorScheme, StylePaint, StyleBorder, StyleSize,
+                 StyleImageLayers, StyleMaskLayers, Dimension, Length, std::optional<Length>, EdgeInsets, MarginInsets, BorderRadii, GapValue,
+                 GridArea, Translate, CursorValue, ScrollbarColors, std::vector<BoxShadow>, std::vector<Effect>, Outline, std::optional<std::string>,
+                 float, int, bool, AppearanceMode, BoxSizing, BorderStyle, DisplayMode, PositionMode, Visibility, FlexDirection, JustifyContent,
+                 JustifySelf, AlignItems, AlignSelf, Overflow, ScrollbarMode, ScrollbarWidth, ScrollbarGutter, FontFamily, TextAlign, TextOverflow,
+                 TextWrap, VerticalAlign, TextDecoration, PointerEvents, CursorStyle, StrokeCap>;
 
 using StyleColorValue = std::variant<Color, LightDarkColor>;
 
@@ -78,9 +85,14 @@ enum class SelectorCombinator { Descendant, Child };
 enum class StyleParsePass : std::uint8_t { Tokens, Rules };
 
 struct StyleAttributeSelector {
+    enum class Match { Exact, IncludesWord, IncludesHyphen, Prefix, Suffix, Substring };
+
     std::string name;
     std::string value;
     bool presence = false;
+    Match match = Match::Exact;
+    bool caseInsensitive = false;
+    bool caseSensitivitySpecified = false;
 };
 
 struct StyleSelector {
@@ -152,6 +164,7 @@ struct StyleRuleSet {
     StyleRuleSet& operator=(StyleRuleSet&&) = delete;
 
     const StyleSheet::DependencyMap& dependencies() const { return mDependencies; }
+    const std::vector<StyleResourceReference>& resourceReferences() const { return mResourceReferences; }
 
     bool stateAffectsLayout(ElementState state) const;
     bool stateAffectsLayout(const Element& element, ElementState state) const;
@@ -171,6 +184,7 @@ private:
     std::map<std::string, float> mNumberTokens;
     StyleSheet::DependencyMap mDependencies;
     std::vector<StyleRule> mRules;
+    std::vector<StyleResourceReference> mResourceReferences;
     std::uint16_t mLayoutStateMask = 0;
     std::array<std::vector<std::size_t>, 9> mLayoutStateRules;
     std::uint16_t mHitTestStateMask = 0;

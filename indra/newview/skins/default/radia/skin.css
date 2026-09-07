@@ -1,4 +1,5 @@
 @import "variants.css";
+@import "icons.css";
 
 :root {
     color-scheme: dark;
@@ -56,12 +57,11 @@ title {
     font-family: sans;
     font-size: 13px;
     line-height: 18px;
-
-    > icon { size: 28px; stroke: 2px var(--accent); }
 }
 
 close, minimize {
     cursor: pointer;
+    color: var(--text);
     size: 24px;
     background-color: #ffffff14;
     border-radius: 6px;
@@ -70,8 +70,6 @@ close, minimize {
     flex-direction: row;
     justify-content: center;
     align-items: center;
-
-    > icon { size: 16px; stroke: 1px var(--text); }
 
     &:hover { background-color: #ffffff28; border-color: #ffffff40; }
     &:active { background-color: #0000003c; border-color: #ffffff18; }
@@ -140,11 +138,6 @@ button {
     &:hover { background-color: var(--surface-hover); }
     &:active { background-color: var(--surface-active); }
     &:disabled { opacity: 0.55; }
-
-    > icon {
-        size: 16px;
-        stroke: 1px var(--accent);
-    }
 }
 
 input[switch] {

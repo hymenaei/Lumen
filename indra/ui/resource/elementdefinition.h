@@ -191,7 +191,6 @@ public:
     static ResourceElementDefinition button();
     static ResourceElementDefinition fieldset();
     static ResourceElementDefinition floater();
-    static ResourceElementDefinition icon();
     static ResourceElementDefinition input();
     static ResourceElementDefinition label();
     static ResourceElementDefinition legend();

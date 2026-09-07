@@ -87,15 +87,12 @@ void RecordingPaintContext::paintNativeButton(const NativeButtonPaintRequest& re
 void RecordingPaintContext::paintBox(const Rect& rect, const ComputedStyle& style, std::optional<TopBorderGap> topBorderGap) {
     PaintCommand command{PaintCommandKind::Box, rect, style};
     command.topBorderGap = topBorderGap;
+    command.backgroundPaintContext = backgroundPaintContext();
     mCommands.push_back(std::move(command));
 }
 
 void RecordingPaintContext::paintText(const std::string& text, const Rect& rect, const ComputedStyle& style) {
     mCommands.push_back({PaintCommandKind::Text, rect, style, text});
-}
-
-void RecordingPaintContext::paintIcon(const std::string& name, const Rect& rect, const ComputedStyle& style, float scale) {
-    mCommands.push_back({PaintCommandKind::Icon, rect, style, name, scale});
 }
 
 std::size_t RecordingPaintContext::count(PaintCommandKind kind) const {

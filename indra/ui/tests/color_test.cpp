@@ -78,6 +78,12 @@ TEST(ColorTest, ParsesTransparentKeyword) {
     expectColor("  TRANSPARENT  ", {0.f, 0.f, 0.f, 0.f});
 }
 
+TEST(ColorTest, ParsesNamedColors) {
+    expectColor("rebeccapurple", {102.f / 255.f, 51.f / 255.f, 153.f / 255.f, 1.f});
+    expectColor("GREY", {128.f / 255.f, 128.f / 255.f, 128.f / 255.f, 1.f});
+    expectColor("aqua", {0.f, 1.f, 1.f, 1.f});
+}
+
 TEST(ColorTest, RejectsInvalidSyntax) {
     for (const char* source : {"##ff880080", "rgba(255 128 0 / 50%)", "hsla(120 100% 50% / .5)", "#ggg", "rgb(1, 2, 3 / .5)", "hsl(0 1 1)",
                                "color(1 2 3)", "lab(50%, 0, 0)"}) {

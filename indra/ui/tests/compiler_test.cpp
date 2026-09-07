@@ -21,7 +21,6 @@
 #include "html/button.h"
 #include "html/elementfactory.h"
 #include "html/floater.h"
-#include "html/icon.h"
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
@@ -45,9 +44,9 @@ using radia::ui::ElementState;
 using radia::ui::FixedTextMetrics;
 using radia::ui::FlexDirection;
 using radia::ui::FontFamily;
+using radia::ui::GradientKind;
 using radia::ui::HTMLButtonElement;
 using radia::ui::HTMLFloaterElement;
-using radia::ui::HTMLIconElement;
 using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
@@ -81,9 +80,10 @@ ComputedStyle computedStyle(const StyleSheet& stylesheet, const Element& element
     return styles.style(element);
 }
 
-HTMLIconElement& appendIcon(HTMLButtonElement& button, std::string name) {
-    auto icon = makeElement<HTMLIconElement>(std::move(name));
-    HTMLIconElement* result = icon.get();
+Element& appendIcon(HTMLButtonElement& button, std::string name) {
+    auto icon = makeElement<Element>("i");
+    Element* result = icon.get();
+    result->addClass("i-" + name);
     button.append(std::move(icon));
     return *result;
 }
@@ -262,7 +262,7 @@ TEST(StyleCompilerTest, AppliesSelectorSpecificity) {
 
 TEST(StyleCompilerTest, ResolvesNestedSelectors) {
     constexpr char kNestedStyles[] = "button { background-color: #101010ff; &:hover { background-color: #202020ff; } "
-                                     "> icon { size: 16px; } &:hover > icon { stroke-width: 3px; } }";
+                                     "> i { size: 16px; } &:hover > i { stroke-width: 3px; } }";
 
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia(kNestedStyles).ok());
@@ -415,7 +415,7 @@ TEST(StyleCompilerTest, RejectsInvalidTypographyForms) {
 TEST(StyleCompilerTest, ParsesBorderProperties) {
     constexpr char kBorderStyles[] = "button { border: 1px #112233ff; border-width: 2px 3px; "
                                      "border-color: #ffffffff; } "
-                                     "button > icon { stroke: 4px #abcdef88; stroke-linecap: square; }";
+                                     "button > i { stroke: #abcdef88; stroke-width: 4px; stroke-linecap: square; }";
 
     StyleSheet stylesheet;
     ASSERT_TRUE(stylesheet.loadRadia(kBorderStyles).ok());
@@ -429,6 +429,33 @@ TEST(StyleCompilerTest, ParsesBorderProperties) {
     ASSERT_TRUE(iconStyle.svgStrokeWidth.has_value());
     EXPECT_EQ(iconStyle.svgStrokeWidth->pixels, 4.f);
     EXPECT_EQ(iconStyle.svgStrokeCap, StrokeCap::Square);
+    EXPECT_FLOAT_EQ(iconStyle.strokeColor.r, 171.f / 255.f);
+    EXPECT_FLOAT_EQ(iconStyle.strokeColor.g, 205.f / 255.f);
+    EXPECT_FLOAT_EQ(iconStyle.strokeColor.b, 239.f / 255.f);
+    EXPECT_FLOAT_EQ(iconStyle.strokeColor.a, 136.f / 255.f);
+}
+
+TEST(StyleCompilerTest, RejectsStrokeShorthandAndLegacyColorProperty) {
+    StyleSheet stylesheet;
+    const auto shorthand = stylesheet.loadRadia("i { stroke: 4px #abcdef; }");
+    ASSERT_FALSE(shorthand.ok());
+    ASSERT_FALSE(shorthand.errors.empty());
+    EXPECT_EQ(shorthand.errors.front().code, "stylesheet.property.value_invalid");
+
+    const auto legacy = stylesheet.loadRadia("i { stroke-color: #abcdef; }");
+    ASSERT_FALSE(legacy.ok());
+    ASSERT_FALSE(legacy.errors.empty());
+    EXPECT_EQ(legacy.errors.front().code, "stylesheet.property.unknown");
+}
+
+TEST(StyleCompilerTest, ResolvesGradientStroke) {
+    StyleSheet stylesheet;
+    ASSERT_TRUE(stylesheet.loadRadia("i { stroke: linear-gradient(to right, #ff0000, #0000ff); }").ok());
+
+    const ComputedStyle style = stylesheet.resolve("i", "", {}, 0);
+    ASSERT_TRUE(style.strokeGradient.has_value());
+    EXPECT_EQ(style.strokeGradient->kind, GradientKind::Linear);
+    EXPECT_EQ(style.strokeGradient->stops.size(), 2U);
 }
 
 TEST(StyleCompilerTest, ResolvesGridSwitchStyles) {
@@ -515,7 +542,7 @@ TEST(StyleCompilerTest, RejectsUnsupportedDisplay) {
 }
 
 TEST(StyleCompilerTest, AppliesSelectorRules) {
-    constexpr char kSelectorListStyles[] = "button, input { height: 32px; } button > icon { width: 14px; } "
+    constexpr char kSelectorListStyles[] = "button, input { height: 32px; } button > i { width: 14px; } "
                                            "button:disabled { opacity: .5; }";
 
     StyleSheet stylesheet;
@@ -725,7 +752,7 @@ TEST(StyleCompilerTest, PreservesNestedSyntax) {
 }
 
 TEST(StyleCompilerTest, RejectsUnclosedStyleBlocks) {
-    const std::string kNestedStyles = "button { icon { width: 1px; } }";
+    const std::string kNestedStyles = "button { i { width: 1px; } }";
     const std::size_t open = kNestedStyles.find('{');
     ASSERT_NE(open, std::string::npos);
     const std::optional<std::size_t> close = matchingBlock(kNestedStyles, open);
@@ -736,7 +763,7 @@ TEST(StyleCompilerTest, RejectsUnclosedStyleBlocks) {
 }
 
 TEST(StyleCompilerTest, KeepsPropertyRegistryValid) {
-    const std::set<std::string_view> shorthandNames{"font", "flex", "min-size", "overflow"};
+    const std::set<std::string_view> shorthandNames{"background", "font", "flex", "mask", "min-size", "overflow"};
     std::set<std::string_view> names;
     for (const StylePropertyDefinition* property = stylePropertyBegin(); property != stylePropertyEnd(); ++property) {
         SCOPED_TRACE(Message() << "style property: " << property->name);

@@ -4,6 +4,7 @@
  */
 
 #include "linden_common.h"
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <gtest/gtest.h>
@@ -17,6 +18,7 @@
 #include "html/input.h"
 #include "html/label.h"
 #include "html/panel.h"
+#include "paint/image.h"
 #include "paint/nativeappearance.h"
 #include "paint/recordingpaintcontext.h"
 #include "resource/resourceprovider.h"
@@ -36,6 +38,7 @@ using radia::ui::HTMLInputElement;
 using radia::ui::HTMLLabelElement;
 using radia::ui::HTMLPanelElement;
 using radia::ui::KeybindingPresentation;
+using radia::ui::MaskMode;
 using radia::ui::NativeAppearance;
 using radia::ui::NativeAppearanceBase;
 using radia::ui::NativeButtonPaintRequest;
@@ -78,6 +81,32 @@ ResourceSnapshot skinSnapshot(std::string localization = kEmptyLocalization, std
     snapshot.add("localization.yaml", std::move(localization));
     snapshot.add("skin.css", std::move(style));
     return snapshot;
+}
+
+std::string onePixelBmp() {
+    constexpr std::array<unsigned char, 58> bytes{
+        0x42, 0x4d, 0x3a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x01,
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
+std::string twoRowBmp() {
+    std::string bytes = onePixelBmp();
+    bytes[2] = static_cast<char>(0x3e);
+    bytes[22] = 2;
+    bytes[34] = 8;
+    bytes.resize(62, '\0');
+    bytes[54] = static_cast<char>(0xff);
+    bytes[55] = 0;
+    bytes[56] = 0;
+    bytes[57] = 0;
+    bytes[58] = 0;
+    bytes[59] = 0;
+    bytes[60] = static_cast<char>(0xff);
+    bytes[61] = 0;
+    return bytes;
 }
 
 float resolvedLabelWidth(const System& system) {
@@ -234,7 +263,7 @@ TEST(SystemTest, PublishesSystemResources) {
     EXPECT_EQ(system.generation(), 1ULL);
     EXPECT_EQ(system.resolveText("message"), "Ready");
     EXPECT_FLOAT_EQ(resolvedLabelWidth(system), 40.f);
-    EXPECT_TRUE(system.hasIcon("search"));
+    EXPECT_NE(system.resourceSvg("icons/search.svg"), nullptr);
 
     const ResourceBuildResult buildResult = system.buildElementTree(ResourceId("view.html"));
     ASSERT_TRUE(buildResult.ok());
@@ -374,35 +403,35 @@ TEST(SystemTest, PreservesLiveGenerationOnFailure) {
     EXPECT_EQ(resolvedLabelWidth(system), 40.f);
 }
 
-TEST(SystemTest, RejectsEmptyReferencedIcons) {
-    constexpr char kIconStyles[] = "icon { size: 16px; }";
+TEST(SystemTest, IgnoresEmptyOptionalMaskSVGAssets) {
+    constexpr char kIconStyles[] = "i.i-search { mask-image: url(icons/search.svg); }";
 
     ResourceSnapshot snapshot = skinSnapshot({}, kIconStyles);
     snapshot.add("resources/icons/search.svg", "");
-    const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(std::move(snapshot));
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
 
-    ASSERT_FALSE(rejected.ok());
-    EXPECT_FALSE(rejected.generation);
-    ASSERT_FALSE(rejected.errors.empty());
-    EXPECT_EQ(rejected.errors.front().code, "svg.empty");
+    ASSERT_TRUE(prepared.ok());
+    ASSERT_EQ(prepared.warnings.size(), 1U);
+    EXPECT_EQ(prepared.warnings.front().code, "svg.empty");
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    EXPECT_EQ(system.resourceSvg("icons/search.svg"), nullptr);
 }
 
-TEST(SystemTest, RejectsUnknownLayoutIcons) {
-    constexpr char kIconStyles[] = "icon { size: 16px; }";
-    constexpr char kKnownIconHTML[] = "<icon src=\"actions/search\"></icon>";
-    constexpr char kMissingIconHTML[] = "<icon src=\"actions/missing\"></icon>";
+TEST(SystemTest, RejectsLegacyIconElements) {
+    constexpr char kIconStyles[] = "i.i-search { mask-image: url(icons/search.svg); }";
+    constexpr char kLegacyIconHTML[] = "<icon src=\"actions/search\"></icon>";
     constexpr char kSearchIcon[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0 L10 10\"/></svg>";
 
     ResourceSnapshot snapshot = skinSnapshot({}, kIconStyles);
-    snapshot.add("known.html", kKnownIconHTML);
-    snapshot.add("missing.html", kMissingIconHTML);
+    snapshot.add("legacy.html", kLegacyIconHTML);
     snapshot.add("resources/icons/actions/search.svg", kSearchIcon);
     const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(std::move(snapshot));
 
     ASSERT_FALSE(rejected.ok());
     EXPECT_FALSE(rejected.generation);
     ASSERT_FALSE(rejected.errors.empty());
-    EXPECT_EQ(rejected.errors.front().code, "layout.icon.missing");
+    EXPECT_EQ(rejected.errors.front().code, "layout.element.unknown");
 }
 
 TEST(SystemTest, RejectsMissingLocalization) {
@@ -419,31 +448,230 @@ TEST(SystemTest, RejectsMissingLocalization) {
     EXPECT_EQ(rejected.errors.front().source, "localization.yaml");
 }
 
-TEST(SystemTest, RejectsMalformedIcons) {
-    constexpr char kIconStyles[] = "icon { size: 16px; }";
+TEST(SystemTest, IgnoresMalformedOptionalMaskSVGAssets) {
+    constexpr char kIconStyles[] = "i.i-search { mask-image: url(icons/search.svg); }";
     constexpr char kMalformedIcon[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0 L10\"/></svg>";
 
     ResourceSnapshot snapshot = skinSnapshot({}, kIconStyles);
     snapshot.add("resources/icons/search.svg", kMalformedIcon, "skin/views/resources/icons/search.svg");
-    const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(std::move(snapshot));
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
 
-    ASSERT_FALSE(rejected.ok());
-    EXPECT_FALSE(rejected.generation);
-    ASSERT_FALSE(rejected.errors.empty());
-    EXPECT_EQ(rejected.errors.front().code, "svg.path.arguments_invalid");
-    EXPECT_EQ(rejected.errors.front().source, "skin/views/resources/icons/search.svg");
+    ASSERT_TRUE(prepared.ok());
+    ASSERT_EQ(prepared.warnings.size(), 1U);
+    EXPECT_EQ(prepared.warnings.front().code, "svg.path.arguments_invalid");
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    EXPECT_EQ(system.resourceSvg("icons/search.svg"), nullptr);
 }
 
-TEST(SystemTest, PreservesAssetProvenance) {
+TEST(SystemTest, LoadsAssetResources) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { cursor: url(cursors/pointer.cur), pointer; }");
+    snapshot.add("resources/cursors/pointer.cur", "cursor bytes", "skin/views/resources/cursors/pointer.cur");
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok());
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    const std::string* resource = system.resourceData("cursors/pointer.cur");
+    ASSERT_NE(resource, nullptr);
+    EXPECT_EQ(*resource, "cursor bytes");
+}
+
+TEST(SystemTest, WarnsForUndecodableOptionalMaskResources) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { mask-image: url(icons/mask.png); }");
+    snapshot.add("resources/icons/mask.png", "png bytes");
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok());
+    ASSERT_EQ(prepared.warnings.size(), 1U);
+    EXPECT_EQ(prepared.warnings.front().code, "ui.resource.unsupported");
+    EXPECT_EQ(prepared.warnings.front().source, "skin.css");
+}
+
+TEST(SystemTest, WarnsForUnsupportedOptionalMaskFormats) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { mask-image: url(icons/mask.gif); }");
+    snapshot.add("resources/icons/mask.gif", "gif bytes");
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok());
+    ASSERT_EQ(prepared.warnings.size(), 1U);
+    EXPECT_EQ(prepared.warnings.front().code, "ui.resource.unsupported");
+    EXPECT_EQ(prepared.warnings.front().source, "skin.css");
+}
+
+TEST(SystemTest, LoadsRasterMaskResources) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { mask-image: url(masks/mask.bmp); }");
+    snapshot.add("resources/masks/mask.bmp", onePixelBmp());
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok());
+    EXPECT_TRUE(prepared.warnings.empty());
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    const radia::ui::RasterImage* image = system.resourceRaster("masks/mask.bmp");
+    ASSERT_NE(image, nullptr);
+    EXPECT_EQ(image->width, 1U);
+    EXPECT_EQ(image->height, 1U);
+    ASSERT_EQ(image->rgba.size(), 4U);
+    EXPECT_EQ(image->rgba[3], 255U);
+}
+
+TEST(SystemTest, LoadsRasterBackgroundResources) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { background-image: url(backgrounds/pattern.bmp); }");
+    snapshot.add("resources/backgrounds/pattern.bmp", twoRowBmp());
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok()) << (prepared.errors.empty() ? "unknown background preparation error" : prepared.errors.front().formatted());
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    const radia::ui::RasterImage* image = system.resourceRaster("backgrounds/pattern.bmp");
+    ASSERT_NE(image, nullptr);
+    EXPECT_EQ(image->width, 1U);
+    EXPECT_EQ(image->height, 2U);
+    ASSERT_EQ(image->rgba.size(), 8U);
+    EXPECT_EQ(image->rgba[0], 0U);
+    EXPECT_EQ(image->rgba[1], 0U);
+    EXPECT_EQ(image->rgba[2], 255U);
+    EXPECT_EQ(image->rgba[4], 255U);
+    EXPECT_EQ(image->rgba[5], 0U);
+    EXPECT_EQ(image->rgba[6], 0U);
+}
+
+TEST(SystemTest, RejectsUnsupportedRequiredBackgroundFormats) {
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { background-image: url(backgrounds/pattern.gif); }");
+    snapshot.add("resources/backgrounds/pattern.gif", "gif bytes");
+
+    const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_FALSE(rejected.ok());
+    ASSERT_EQ(rejected.errors.size(), 1U);
+    EXPECT_EQ(rejected.errors.front().code, "ui.resource.unsupported");
+    EXPECT_EQ(rejected.errors.front().source, "skin.css");
+}
+
+TEST(SystemTest, RejectsMissingRequiredStyleResources) {
+    const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(
+        skinSnapshot({}, "button { background-image: url(backgrounds/missing.svg); cursor: url(cursors/missing.png), pointer; }"));
+
+    ASSERT_FALSE(rejected.ok());
+    ASSERT_EQ(rejected.errors.size(), 2U);
+    EXPECT_EQ(rejected.errors[0].code, "ui.resource.missing");
+    EXPECT_EQ(rejected.errors[1].code, "ui.resource.missing");
+    EXPECT_EQ(rejected.errors[0].source, "skin.css");
+    EXPECT_EQ(rejected.errors[1].source, "skin.css");
+}
+
+TEST(SystemTest, CompilesSVGAssetsOutsideIconDirectory) {
+    constexpr char kBackgroundSvg[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0 L24 24\"/></svg>";
+    ResourceSnapshot snapshot = skinSnapshot({}, "i { background-image: url(backgrounds/pattern.svg); }");
+    snapshot.add("resources/backgrounds/pattern.svg", kBackgroundSvg, "skin/resources/backgrounds/pattern.svg");
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+
+    ASSERT_TRUE(prepared.ok());
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    const std::string* resource = system.resourceData("backgrounds/pattern.svg");
+    ASSERT_NE(resource, nullptr);
+    EXPECT_EQ(*resource, kBackgroundSvg);
+}
+
+TEST(SystemTest, ResolvesImportedIconStylesAndAssets) {
+    constexpr char kIconStyles[] = "@import \"icons.css\";";
+    constexpr char kIconModule[] = "i[class*=\"i-\"] { display: inline-block; size: 16px; background: currentColor; "
+                                   "mask-position: center; mask-repeat: no-repeat; mask-size: contain; mask-mode: alpha; } "
+                                   ".md { size: 16px; } .i-search { mask-image: url(\"icons/search.svg\"); }";
+    constexpr char kSearchIcon[] = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">"
+                                   "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/></svg>";
+
+    ResourceSnapshot snapshot = skinSnapshot({}, kIconStyles);
+    snapshot.setLayers("skin.css", {radia::ui::ResourceLayer{"test/skin.css", kIconStyles, "skin.css", {{"icons.css", kIconModule}}}});
+    snapshot.add("resources/icons/search.svg", kSearchIcon);
+
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+    ASSERT_TRUE(prepared.ok()) << (prepared.errors.empty() ? "unknown icon preparation error" : prepared.errors.front().formatted());
+
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    EXPECT_NE(system.resourceSvg("icons/search.svg"), nullptr);
+
+    std::unique_ptr<Surface> surface = system.createSurface(fixedTextMetrics());
+    surface->setViewport(40.f, 40.f);
+    auto icon = makeElement<Element>("i");
+    Element* iconPtr = icon.get();
+    icon->setAttribute("class", "i-search md");
+    surface->mount(std::move(icon));
+    surface->updateLayout();
+
+    RecordingPaintContext recording;
+    surface->paint(recording);
+    const PaintCommand* command = recording.last(PaintCommandKind::Box);
+    ASSERT_NE(command, nullptr);
+    ASSERT_EQ(command->style.maskLayers.size(), 1U);
+    EXPECT_EQ(command->style.maskLayers.front().image.resource, "icons/search.svg");
+    EXPECT_EQ(command->style.maskLayers.front().mode, MaskMode::Alpha);
+    ASSERT_EQ(command->style.backgroundLayers.size(), 1U);
+    EXPECT_TRUE(command->style.backgroundLayers.front().resource.empty());
+    EXPECT_GT(command->style.backgroundColor.a, 0.f);
+    EXPECT_EQ(iconPtr->rect().w, 16.f);
+    EXPECT_EQ(iconPtr->rect().h, 16.f);
+}
+
+TEST(SystemTest, PaintsMaskIconInsideButton) {
+    constexpr char kStyles[] =
+        "button { color: #ffffff; } i { display: inline-block; size: 16px; background: currentColor; "
+        "mask-image: url(icons/search.svg); mask-position: center; mask-repeat: no-repeat; mask-size: contain; mask-mode: alpha; }";
+    constexpr char kSearchIcon[] = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">"
+                                   "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/></svg>";
+
+    ResourceSnapshot snapshot = skinSnapshot({}, kStyles);
+    snapshot.add("resources/icons/search.svg", kSearchIcon);
+    const SkinGenerationPrepareResult prepared = SkinCompiler().prepare(std::move(snapshot));
+    ASSERT_TRUE(prepared.ok()) << (prepared.errors.empty() ? "unknown icon preparation error" : prepared.errors.front().formatted());
+
+    System system;
+    ASSERT_TRUE(system.publish(prepared.generation));
+    std::unique_ptr<Surface> surface = system.createSurface(fixedTextMetrics());
+    surface->setViewport(160.f, 48.f);
+    auto button = makeElement<HTMLButtonElement>();
+    button->setRect({0.f, 0.f, 160.f, 32.f});
+    auto icon = makeElement<Element>("i");
+    Element* iconPtr = icon.get();
+    icon->setAttribute("class", "i-search");
+    button->append(std::move(icon));
+    button->append(std::make_unique<radia::ui::Text>("\n            Press\n        "));
+    surface->mount(std::move(button));
+    surface->updateLayout();
+
+    ASSERT_GT(iconPtr->rect().w, 0.f);
+    ASSERT_GT(iconPtr->rect().h, 0.f);
+
+    RecordingPaintContext recording;
+    surface->paint(recording);
+    const PaintCommand* iconCommand = nullptr;
+    for (const PaintCommand& command : recording.commands())
+        if (command.kind == PaintCommandKind::Box && !command.style.maskLayers.empty()) iconCommand = &command;
+    ASSERT_NE(iconCommand, nullptr);
+    ASSERT_EQ(iconCommand->style.maskLayers.size(), 1U);
+    EXPECT_EQ(iconCommand->style.maskLayers.front().mode, MaskMode::Alpha);
+}
+
+TEST(SystemTest, RejectsMalformedSVGAssetsOutsideIconDirectory) {
+    constexpr char kMalformedSvg[] = "<svg viewBox=\"0 0 24 24\"><path d=\"M0 0 L24\"/></svg>";
     ResourceSnapshot snapshot = skinSnapshot();
-    snapshot.add("resources/not-an-icon.txt", "not an icon", "skin/views/resources/not-an-icon.txt");
+    snapshot.add("resources/backgrounds/pattern.svg", kMalformedSvg, "skin/resources/backgrounds/pattern.svg");
 
     const SkinGenerationPrepareResult rejected = SkinCompiler().prepare(std::move(snapshot));
 
     ASSERT_FALSE(rejected.ok());
     ASSERT_FALSE(rejected.errors.empty());
-    EXPECT_EQ(rejected.errors.front().code, "ui.asset.unsupported");
-    EXPECT_EQ(rejected.errors.front().source, "skin/views/resources/not-an-icon.txt");
+    EXPECT_EQ(rejected.errors.front().code, "svg.path.arguments_invalid");
+    EXPECT_EQ(rejected.errors.front().source, "skin/resources/backgrounds/pattern.svg");
 }
 
 TEST(SystemTest, PreservesLayoutProvenance) {

@@ -220,12 +220,14 @@ void Element::setAttribute(std::string name, std::optional<std::string> value) {
                 currentSurface->elementBecameUnavailable(*this);
             }
         }
+        if (!changed) invalidateStyleTree();
         return;
     }
     if (name == "hidden") {
         mVisibilityOverride = Visibility::Hidden;
         setAttributeValue(std::move(name), std::move(value));
         if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+        invalidateStyleTree();
         invalidatePaint();
         if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
         return;
@@ -238,6 +240,7 @@ void Element::setAttribute(std::string name, std::optional<std::string> value) {
         }
         setAttributeValue(std::move(name), std::move(value));
         if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+        invalidateStyleTree();
         invalidatePaint();
         if (mVisibilityOverride && *mVisibilityOverride != Visibility::Visible) {
             if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);
@@ -245,6 +248,7 @@ void Element::setAttribute(std::string name, std::optional<std::string> value) {
         return;
     }
     setAttributeValue(std::move(name), std::move(value));
+    invalidateStyleTree();
 }
 
 void Element::removeAttribute(std::string_view name) {
@@ -267,12 +271,14 @@ void Element::removeAttribute(std::string_view name) {
         if (changed) {
             if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
         }
+        if (!changed) invalidateStyleTree();
         return;
     }
     if (name == "hidden") {
         mVisibilityOverride = Visibility::Visible;
         removeAttributeValue(name);
         if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+        invalidateStyleTree();
         invalidatePaint();
         return;
     }
@@ -280,10 +286,12 @@ void Element::removeAttribute(std::string_view name) {
         mVisibilityOverride = Visibility::Visible;
         removeAttributeValue(name);
         if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+        invalidateStyleTree();
         invalidatePaint();
         return;
     }
     removeAttributeValue(name);
+    invalidateStyleTree();
 }
 
 bool Element::flowBreakBefore() const {
@@ -435,6 +443,7 @@ Element& Element::setVisibility(Visibility visibility) {
                           visibility == Visibility::Hidden ? std::optional<std::string>("hidden") : std::optional<std::string>("collapse"));
     removeAttributeValue("hidden");
     if (Surface* currentSurface = surface()) currentSurface->requestHitTestRefresh();
+    invalidateStyleTree();
     invalidatePaint();
     if (visibility != Visibility::Visible) {
         if (Surface* currentSurface = surface()) currentSurface->elementBecameUnavailable(*this);

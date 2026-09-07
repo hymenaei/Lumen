@@ -12,7 +12,7 @@
 #include "paint/path.h"
 
 namespace radia::ui {
-struct SvgIcon {
+struct SvgImage {
     Rect viewBox = Rect(0.f, 0.f, 24.f, 24.f);
     float strokeWidth = 2.f;
     StrokeCap strokeCap = StrokeCap::Butt;
@@ -22,10 +22,10 @@ struct SvgIcon {
 };
 
 struct SvgCompileResult : DiagnosticResult {
-    std::optional<SvgIcon> icon;
-    bool ok() const { return !hasErrors() && icon.has_value(); }
+    std::optional<SvgImage> image;
+    bool ok() const { return !hasErrors() && image.has_value(); }
 };
 
-SvgCompileResult compileSvgIcon(const std::string& svg, const std::string& source = {});
+SvgCompileResult compileSvgImage(const std::string& svg, const std::string& source = {});
 Path transformSvgPath(const Path& path, const Rect& viewBox, const Rect& target);
 } // namespace radia::ui

@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "css/stylesheet.h"
 #include "localization.h"
@@ -16,7 +17,8 @@
 namespace radia::ui {
 class SkinCompiler;
 class System;
-struct SvgIcon;
+struct SvgImage;
+struct RasterImage;
 
 class SkinGeneration final {
 public:
@@ -33,7 +35,6 @@ private:
 
     static std::shared_ptr<const SkinGeneration> empty();
     DiagnosticResult validateElementDefaults(const std::string& elementName) const;
-    void validateIconReferences(Element& element, ResourceBuildResult& result) const;
     std::vector<LocaleInfo> locales() const;
     const std::string& defaultLocale() const;
     const LocaleInfo* locale(const std::string& id) const;
@@ -42,7 +43,9 @@ private:
     std::string resolveHTML(const std::string& locale, const LocalizedText& text) const;
     std::string resolveText(const std::string& locale, const LocalizedText& text) const;
     const StyleSheet& styleSheet() const;
-    const SvgIcon* icon(const std::string& name) const;
+    const SvgImage* resourceSvg(std::string_view reference) const;
+    const RasterImage* resourceRaster(std::string_view reference) const;
+    const std::string* resourceData(std::string_view reference) const;
 
     std::unique_ptr<Impl> mImpl;
 

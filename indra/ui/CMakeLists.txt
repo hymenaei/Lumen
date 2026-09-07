@@ -47,7 +47,6 @@ set(private_sources
     html/fieldset.cpp
     html/fieldset.h
     html/floater.cpp
-    html/icon.cpp
     html/input.cpp
     html/inputcheckbox.cpp
     html/inputradio.cpp
@@ -65,6 +64,7 @@ set(private_sources
     layout/treecache.h
 
     paint/nativeappearance.cpp
+    paint/image.h
     paint/openglpaintcontext.cpp
     paint/openglpaintstate.cpp
     paint/openglpaintstate.h
@@ -134,7 +134,6 @@ set(public_sources
     html/button.h
     html/element.h
     html/floater.h
-    html/icon.h
     html/input.h
     html/label.h
     html/panel.h

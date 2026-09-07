@@ -93,7 +93,8 @@ void ClipStack::push(const Rect& rect, float scale, ClipAxes axes) {
     }
     mClips.emplace_back(clipped, resolvedScale);
     gGL.flush();
-    applyScissor(intersectRects(clipped, mState.target.bounds), resolvedScale, mState.origin, mState.target.pixelOrigin,
+    const Rect targetClip = clipInTargetSpace(clipped);
+    applyScissor(intersectRects(targetClip, mState.target.bounds), resolvedScale, mState.origin, mState.target.pixelOrigin,
                  mState.target.clipAA == AAIntent::Coverage);
 }
 
@@ -102,7 +103,7 @@ void ClipStack::pop() {
     gGL.flush();
     mClips.pop_back();
     if (!mClips.empty()) {
-        const Rect& clip = mClips.back().first;
+        const Rect clip = clipInTargetSpace(mClips.back().first);
         const float scale = mClips.back().second;
         applyScissor(intersectRects(clip, mState.target.bounds), scale, mState.origin, mState.target.pixelOrigin,
                      mState.target.clipAA == AAIntent::Coverage);
@@ -138,7 +139,7 @@ void ClipStack::popAllTranslations() {
 
 void ClipStack::reapply() {
     if (mClips.empty()) return;
-    const Rect clipped = intersectRects(mClips.back().first, mState.target.bounds);
+    const Rect clipped = intersectRects(clipInTargetSpace(mClips.back().first), mState.target.bounds);
     applyScissor(clipped, mClips.back().second, mState.origin, mState.target.pixelOrigin, mState.target.clipAA == AAIntent::Coverage);
 }
 
@@ -146,12 +147,22 @@ const Rect& ClipStack::bounds() const {
     return mState.target.bounds;
 }
 
+Rect ClipStack::clipInTargetSpace(const Rect& clip) const {
+    if (mState.target.kind != PaintTargetKind::Offscreen) return clip;
+    return {clip.x - mTranslation.x, clip.y - mTranslation.y, clip.w, clip.h};
+}
+
+Rect ClipStack::pixelRect() const {
+    if (mClips.empty()) return {};
+    const Rect logical = intersectRects(clipInTargetSpace(mClips.back().first), mState.target.bounds);
+    const float scale = pixelScale();
+    return {mState.target.pixelOrigin.x + (logical.left() - mState.origin.x) * scale,
+            mState.target.pixelOrigin.y + (logical.bottom() - mState.origin.y) * scale, logical.w * scale, logical.h * scale};
+}
+
 std::optional<Rect> ClipStack::coverageBounds() const {
     if (mClips.empty() || mState.target.clipAA != AAIntent::Coverage) return std::nullopt;
-    const Rect logical = intersectRects(mClips.back().first, mState.target.bounds);
-    const float scale = mClips.back().second;
-    return Rect{mState.target.pixelOrigin.x + (logical.left() - mState.origin.x) * scale,
-                mState.target.pixelOrigin.y + (logical.bottom() - mState.origin.y) * scale, logical.w * scale, logical.h * scale};
+    return pixelRect();
 }
 
 PaintState ClipStack::snapshot() const {

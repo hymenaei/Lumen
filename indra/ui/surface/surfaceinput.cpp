@@ -188,25 +188,34 @@ void Surface::clearInteractionState() {
 }
 
 CursorStyle Surface::cursor() const {
+    return cursorValue().style;
+}
+
+CursorValue Surface::cursorValue() const {
     const ScrollbarTarget* scrollbar = mScrollbarCapture ? &*mScrollbarCapture : (mScrollbarHover ? &*mScrollbarHover : nullptr);
-    if (mResizeCursor != CursorStyle::Auto) return mResizeCursor;
-    if (scrollbar) return CursorStyle::Default;
+    if (mResizeCursor != CursorStyle::Auto) return {mResizeCursor, {}};
+    if (scrollbar) return {CursorStyle::Default, {}};
     const Element* element = mCaptured ? mCaptured : mHovered;
-    if (!element) return CursorStyle::Default;
+    if (!element) return {CursorStyle::Default, {}};
     const ConstElementObservation observation = observe(*element);
     StylePass& styles = stylePass();
     const StylePass::TraversalScope traversal = styles.enterTraversal();
     const ComputedStyle style = styles.style(*element);
     const Element* current = observation.get();
     if (!current || !observation.layoutValid() || !observation.styleValid() || !isRootedInSurface(current) || !current->isVisible(style))
-        return CursorStyle::Default;
+        return {CursorStyle::Default, {}};
     const CursorStyle cursor = style.cursor;
-    return cursor == CursorStyle::Auto ? CursorStyle::Default : cursor;
+    return {cursor == CursorStyle::Auto ? CursorStyle::Default : cursor, style.cursorImages};
 }
 
 std::optional<CursorStyle> Surface::pointerCursor() const {
+    const std::optional<CursorValue> value = pointerCursorValue();
+    return value ? std::optional<CursorStyle>(value->style) : std::nullopt;
+}
+
+std::optional<CursorValue> Surface::pointerCursorValue() const {
     if (!mHovered && !mPressed && !mCaptured && !mScrollbarHover && !mScrollbarCapture && mResizeCursor == CursorStyle::Auto) return std::nullopt;
-    return cursor();
+    return cursorValue();
 }
 
 bool Surface::pointerMove(const PointerEvent& event) {

@@ -173,6 +173,10 @@ std::string System::resolveHTML(const LocalizedText& text) const {
     return mSkinGeneration->resolveHTML(mActiveLocale, text);
 }
 
+const std::string* System::resourceData(std::string_view reference) const {
+    return mSkinGeneration->resourceData(reference);
+}
+
 LocalizedText System::t(std::string id, LocalizationArguments arguments) const {
     return LocalizedText(std::move(id), std::move(arguments));
 }
@@ -181,12 +185,12 @@ const StyleSheet& System::styleSheet() const {
     return mSkinGeneration->styleSheet();
 }
 
-const SvgIcon* System::icon(const std::string& name) const {
-    return mSkinGeneration->icon(name);
+const SvgImage* System::resourceSvg(std::string_view reference) const {
+    return mSkinGeneration->resourceSvg(reference);
 }
 
-bool System::hasIcon(const std::string& name) const {
-    return icon(name) != nullptr;
+const RasterImage* System::resourceRaster(std::string_view reference) const {
+    return mSkinGeneration->resourceRaster(reference);
 }
 
 bool System::setLocale(const std::string& localeId) {
