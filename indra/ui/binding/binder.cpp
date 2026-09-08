@@ -349,7 +349,7 @@ bool Binder::validForCommit() const {
     if (currentMountEpoch != mRootMountEpoch && !firstMountAfterPrepare) return false;
     if (ElementInternalAccess::topologyEpoch(*mRoot) != mRootTopologyEpoch) return false;
 
-    const auto mountEpochValid = [this, firstMountAfterPrepare](const Element& element, MountEpoch expected) {
+    const auto mountEpochValid = [firstMountAfterPrepare](const Element& element, MountEpoch expected) {
         const MountEpoch current = ElementInternalAccess::mountEpoch(element);
         if (current == expected) return true;
         return firstMountAfterPrepare
