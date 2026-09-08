@@ -5,7 +5,6 @@
 
 #include "linden_common.h"
 #include <algorithm>
-#include <array>
 #include <benchmark/benchmark.h>
 #include <cstddef>
 #include <memory>
@@ -18,6 +17,7 @@
 #include "html/label.h"
 #include "html/panel.h"
 #include "layout/engine.h"
+#include "style/stylepass.h"
 #include "text/metrics.h"
 
 namespace {
@@ -31,6 +31,7 @@ using radia::ui::LayoutDirection;
 using radia::ui::LayoutEngine;
 using radia::ui::LayoutStatistics;
 using radia::ui::Rect;
+using radia::ui::StylePass;
 using radia::ui::StyleSheet;
 using radia::ui::Visibility;
 using radia::ui::detail::appendText;
@@ -52,21 +53,13 @@ enum class LayoutCase {
     WrappedText,
     CompositeControls,
     HiddenLabels,
-    CollapsedLabels,
-    RightToLeftRow
+    CollapsedLabels
 };
 
 struct LayoutFixture {
     std::unique_ptr<HTMLPanelElement> root;
     StyleSheet styleSheet;
-    LayoutDirection direction = LayoutDirection::LeftToRight;
 };
-
-constexpr std::array<int, 3> kScaleNodeCounts = {10, 100, 1000};
-constexpr std::array<int, 2> kRepresentativeNodeCounts = {100, 1000};
-constexpr std::array<int, 1> kStateNodeCounts = {1000};
-constexpr std::array<int, 1> kCacheNodeCounts = {1000};
-constexpr std::array<int, 2> kDirectionNodeCounts = {100, 1000};
 
 void addFlatLabels(HTMLPanelElement& root, std::size_t nodeCount, bool withText, Visibility specialVisibility = Visibility::Visible) {
     for (std::size_t index = 0; index < nodeCount; ++index) {
@@ -76,22 +69,31 @@ void addFlatLabels(HTMLPanelElement& root, std::size_t nodeCount, bool withText,
     }
 }
 
-void addBalancedChildren(HTMLPanelElement& parent, std::size_t& remaining, std::size_t depth) {
-    if (remaining == 0) return;
+void addBalancedChildren(HTMLPanelElement& parent, std::size_t nodeCount, std::size_t depth) {
+    if (nodeCount == 0) return;
 
     const std::size_t branchCount = depth % 2 == 0 ? 2 : 3;
-    for (std::size_t branch = 0; branch < branchCount && remaining > 0; ++branch) {
-        if (remaining > 1 && depth < 8) {
-            auto child = makeElement<HTMLPanelElement>();
-            HTMLPanelElement* childPointer = child.get();
-            parent.append(std::move(child));
-            --remaining;
-            addBalancedChildren(*childPointer, remaining, depth + 1);
-        } else {
-            parent.append(makeElement<HTMLLabelElement>());
-            --remaining;
-        }
+    if (nodeCount <= branchCount) {
+        for (std::size_t index = 0; index < nodeCount; ++index) parent.append(makeElement<HTMLLabelElement>());
+        return;
     }
+
+    const std::size_t descendantCount = nodeCount - branchCount;
+    const std::size_t descendantsPerChild = descendantCount / branchCount;
+    const std::size_t extraDescendants = descendantCount % branchCount;
+    for (std::size_t branch = 0; branch < branchCount; ++branch) {
+        auto child = makeElement<HTMLPanelElement>();
+        HTMLPanelElement* childPointer = child.get();
+        parent.append(std::move(child));
+        const std::size_t childNodeCount = descendantsPerChild + (branch < extraDescendants ? 1 : 0);
+        addBalancedChildren(*childPointer, childNodeCount, depth + 1);
+    }
+}
+
+std::size_t countElements(const Element& element) {
+    std::size_t count = 1;
+    for (const Element* child : element.children()) count += countElements(*child);
+    return count;
 }
 
 void addExplicitLabels(HTMLPanelElement& root, std::size_t nodeCount) {
@@ -132,13 +134,19 @@ bool makeFixture(LayoutFixture& fixture, LayoutCase layoutCase, std::size_t node
     fixture.root = makeElement<HTMLPanelElement>();
 
     std::string styleSource;
-    Rect rootRect;
+    Rect rootRect{0.f, 0.f, 0.f, 0.f};
     switch (layoutCase) {
         case LayoutCase::FlatColumn:
+        case LayoutCase::HiddenLabels:
+        case LayoutCase::CollapsedLabels: {
             styleSource = "panel { display: flex; flex-direction: column; gap: 2px; } label { width: 120px; height: 10px; }";
-            addFlatLabels(*fixture.root, nodeCount, false);
+            Visibility specialVisibility = Visibility::Visible;
+            if (layoutCase == LayoutCase::HiddenLabels) specialVisibility = Visibility::Hidden;
+            else if (layoutCase == LayoutCase::CollapsedLabels) specialVisibility = Visibility::Collapse;
+            addFlatLabels(*fixture.root, nodeCount, false, specialVisibility);
             rootRect = {0.f, 0.f, 320.f, std::max(120.f, static_cast<float>(nodeCount) * 12.f)};
             break;
+        }
         case LayoutCase::FlatRow:
             styleSource = "panel { display: flex; flex-direction: row; gap: 1px; } label { width: 10px; height: 10px; }";
             addFlatLabels(*fixture.root, nodeCount, false);
@@ -146,8 +154,7 @@ bool makeFixture(LayoutFixture& fixture, LayoutCase layoutCase, std::size_t node
             break;
         case LayoutCase::BalancedTree: {
             styleSource = "panel { display: flex; flex-direction: row; gap: 1px; } label { width: 10px; height: 10px; }";
-            std::size_t remaining = nodeCount;
-            addBalancedChildren(*fixture.root, remaining, 0);
+            addBalancedChildren(*fixture.root, nodeCount, 0);
             rootRect = {0.f, 0.f, 800.f, 600.f};
             break;
         }
@@ -183,22 +190,16 @@ bool makeFixture(LayoutFixture& fixture, LayoutCase layoutCase, std::size_t node
             addCompositeControls(*fixture.root, nodeCount);
             rootRect = {0.f, 0.f, 240.f, std::max(120.f, static_cast<float>(nodeCount) * 28.f)};
             break;
-        case LayoutCase::HiddenLabels:
-            styleSource = "panel { display: flex; flex-direction: column; gap: 2px; } label { width: 120px; height: 10px; }";
-            addFlatLabels(*fixture.root, nodeCount, false, Visibility::Hidden);
-            rootRect = {0.f, 0.f, 320.f, std::max(120.f, static_cast<float>(nodeCount) * 12.f)};
-            break;
-        case LayoutCase::CollapsedLabels:
-            styleSource = "panel { display: flex; flex-direction: column; gap: 2px; } label { width: 120px; height: 10px; }";
-            addFlatLabels(*fixture.root, nodeCount, false, Visibility::Collapse);
-            rootRect = {0.f, 0.f, 320.f, std::max(120.f, static_cast<float>(nodeCount) * 12.f)};
-            break;
-        case LayoutCase::RightToLeftRow:
-            styleSource = "panel { display: flex; flex-direction: row; gap: 1px; } label { width: 10px; height: 10px; }";
-            addFlatLabels(*fixture.root, nodeCount, false);
-            fixture.direction = LayoutDirection::RightToLeft;
-            rootRect = {0.f, 0.f, std::max(120.f, static_cast<float>(nodeCount) * 12.f), 24.f};
-            break;
+    }
+
+    if (styleSource.empty()) {
+        state.SkipWithError("No fixture defined for this layout case.");
+        return false;
+    }
+
+    if (layoutCase == LayoutCase::BalancedTree && countElements(*fixture.root) != nodeCount + 1) {
+        state.SkipWithError("Balanced tree fixture did not create the requested element count.");
+        return false;
     }
 
     fixture.root->setRect(rootRect);
@@ -210,137 +211,134 @@ bool makeFixture(LayoutFixture& fixture, LayoutCase layoutCase, std::size_t node
     return true;
 }
 
-struct StatisticsTotals {
-    std::size_t measuredNodes = 0;
-    std::size_t constrainedRemeasures = 0;
-    std::size_t arrangedNodes = 0;
-    std::size_t skippedNodes = 0;
+LayoutStatistics runLayout(Element& root, StylePass& styles) {
+    const StylePass::TraversalScope traversal = styles.enterTraversal();
+    return LayoutEngine::layout(root, styles);
+}
 
-    void add(const LayoutStatistics& statistics) {
-        measuredNodes += statistics.measuredNodes;
-        constrainedRemeasures += statistics.constrainedRemeasures;
-        arrangedNodes += statistics.arrangedNodes;
-        skippedNodes += statistics.skippedNodes;
+bool requireRelayout(benchmark::State& state, const LayoutStatistics& statistics, const char* message) {
+    if (statistics.measuredNodes != 0 && statistics.arrangedNodes != 0) return true;
+    state.SkipWithError(message);
+    return false;
+}
+
+bool requireCachedLayout(benchmark::State& state, const LayoutStatistics& statistics, const char* message) {
+    if (statistics.measuredNodes == 0 && statistics.arrangedNodes == 0 && statistics.skippedNodes != 0) return true;
+    state.SkipWithError(message);
+    return false;
+}
+
+template<typename Prepare> void timedLayout(benchmark::State& state, Element& root, Prepare&& prepare) {
+    state.PauseTiming();
+    {
+        StylePass& styles = prepare();
+        const StylePass::TraversalScope traversal = styles.enterTraversal();
+        state.ResumeTiming();
+        LayoutEngine::layout(root, styles);
+        state.PauseTiming();
     }
+    state.ResumeTiming();
+}
 
-    void publish(benchmark::State& state) const {
-        state.counters["MeasuredNodes"] = benchmark::Counter(static_cast<double>(measuredNodes), benchmark::Counter::kAvgIterations);
-        state.counters["ConstrainedRemeasures"] = benchmark::Counter(static_cast<double>(constrainedRemeasures), benchmark::Counter::kAvgIterations);
-        state.counters["ArrangedNodes"] = benchmark::Counter(static_cast<double>(arrangedNodes), benchmark::Counter::kAvgIterations);
-        state.counters["SkippedNodes"] = benchmark::Counter(static_cast<double>(skippedNodes), benchmark::Counter::kAvgIterations);
-    }
-};
+void timedLayout(benchmark::State& state, Element& root, StylePass& styles) {
+    timedLayout(state, root, [&styles]() -> StylePass& { return styles; });
+}
 
-void BM_Layout_RelayoutAfterResize(benchmark::State& state, LayoutCase layoutCase) {
+void BM_ComputeLayout(benchmark::State& state, LayoutCase layoutCase) {
     // Measure CPU layout cost after a warmed fixture changes size. Fixture
-    // construction, stylesheet parsing, and the initial layout are excluded;
-    // the rectangle mutation is scenario setup rather than layout work.
+    // construction, stylesheet parsing, style-pass construction, and the
+    // rectangle mutation are excluded from the timed layout call.
     LayoutFixture fixture;
     if (!makeFixture(fixture, layoutCase, static_cast<std::size_t>(state.range(0)), state)) return;
     const auto& textMetrics = fixedTextMetrics();
     const Rect baseRect = fixture.root->rect();
+    const Rect firstResize{baseRect.x, baseRect.y, baseRect.w + 1.f, baseRect.h};
+    const Rect secondResize{baseRect.x, baseRect.y, baseRect.w + 2.f, baseRect.h};
+    StylePass styles(fixture.styleSheet, textMetrics, LayoutDirection::LeftToRight);
 
-    LayoutStatistics warmup = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, fixture.direction);
-    benchmark::DoNotOptimize(warmup.measuredNodes);
+    runLayout(*fixture.root, styles);
 
-    StatisticsTotals totals;
+    LayoutStatistics resizeProbe;
+    {
+        fixture.root->setRect(firstResize);
+        resizeProbe = runLayout(*fixture.root, styles);
+    }
+    if (!requireRelayout(state, resizeProbe, "Resize benchmark did not invalidate layout state.")) return;
+
+    const LayoutStatistics cacheProbe = runLayout(*fixture.root, styles);
+    if (!requireCachedLayout(state, cacheProbe, "Resize benchmark did not reuse the cached layout state.")) return;
+
+    fixture.root->setRect(baseRect);
+    runLayout(*fixture.root, styles);
+
     std::size_t iteration = 0;
     for (auto _ : state) {
-        const float width = baseRect.w + (iteration++ % 2 == 0 ? 1.f : 2.f);
-        state.PauseTiming();
-        fixture.root->setRect({baseRect.x, baseRect.y, width, baseRect.h});
-        state.ResumeTiming();
-
-        LayoutStatistics statistics = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, fixture.direction);
-        state.PauseTiming();
-        totals.add(statistics);
-        state.ResumeTiming();
+        timedLayout(state, *fixture.root, [&]() -> StylePass& {
+            fixture.root->setRect(iteration++ % 2 == 0 ? firstResize : secondResize);
+            return styles;
+        });
     }
-    totals.publish(state);
 }
 
-void BM_Layout_CachedLayout(benchmark::State& state, LayoutCase layoutCase) {
+void BM_CachedLayout(benchmark::State& state, LayoutCase layoutCase) {
     // Measure the CPU cost of resolving a layout tree that has already reached
     // its steady state. The first layout warms the cache and is not measured.
     LayoutFixture fixture;
     if (!makeFixture(fixture, layoutCase, static_cast<std::size_t>(state.range(0)), state)) return;
     const auto& textMetrics = fixedTextMetrics();
-    LayoutStatistics warmup = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, fixture.direction);
-    benchmark::DoNotOptimize(warmup.measuredNodes);
+    StylePass styles(fixture.styleSheet, textMetrics, LayoutDirection::LeftToRight);
 
-    StatisticsTotals totals;
-    for (auto _ : state) {
-        LayoutStatistics statistics = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, fixture.direction);
-        state.PauseTiming();
-        totals.add(statistics);
-        state.ResumeTiming();
-    }
-    totals.publish(state);
+    runLayout(*fixture.root, styles);
+    const LayoutStatistics cacheProbe = runLayout(*fixture.root, styles);
+    if (!requireCachedLayout(state, cacheProbe, "Steady-state benchmark did not reach the cached layout path.")) return;
+
+    for (auto _ : state) timedLayout(state, *fixture.root, styles);
 }
 
-void BM_Layout_RelayoutAfterDirectionChange(benchmark::State& state, LayoutCase layoutCase) {
+void BM_DirectionChange(benchmark::State& state) {
     // Measure CPU layout cost when direction alternates between iterations.
-    // The direction transition is part of the workload represented by this
-    // family, while fixture construction and the initial layout are excluded.
+    // Each direction keeps a warmed style pass, so style-pass allocation and
+    // selector resolution do not bias the layout timing.
     LayoutFixture fixture;
-    if (!makeFixture(fixture, layoutCase, static_cast<std::size_t>(state.range(0)), state)) return;
+    if (!makeFixture(fixture, LayoutCase::FlatRow, static_cast<std::size_t>(state.range(0)), state)) return;
     const auto& textMetrics = fixedTextMetrics();
-    LayoutStatistics warmup = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, LayoutDirection::LeftToRight);
-    benchmark::DoNotOptimize(warmup.measuredNodes);
+    StylePass leftToRightStyles(fixture.styleSheet, textMetrics, LayoutDirection::LeftToRight);
+    StylePass rightToLeftStyles(fixture.styleSheet, textMetrics, LayoutDirection::RightToLeft);
 
-    StatisticsTotals totals;
+    runLayout(*fixture.root, leftToRightStyles);
+    const LayoutStatistics relayoutProbe = runLayout(*fixture.root, rightToLeftStyles);
+    if (!requireRelayout(state, relayoutProbe, "Direction benchmark did not exercise a full relayout.")) return;
+    runLayout(*fixture.root, leftToRightStyles);
+
     bool rightToLeft = false;
     for (auto _ : state) {
-        rightToLeft = !rightToLeft;
-        const auto direction = rightToLeft ? LayoutDirection::RightToLeft : LayoutDirection::LeftToRight;
-        LayoutStatistics statistics = LayoutEngine::layout(*fixture.root, fixture.styleSheet, textMetrics, direction);
-        state.PauseTiming();
-        totals.add(statistics);
-        state.ResumeTiming();
+        timedLayout(state, *fixture.root, [&]() -> StylePass& {
+            rightToLeft = !rightToLeft;
+            return rightToLeft ? rightToLeftStyles : leftToRightStyles;
+        });
     }
-    totals.publish(state);
 }
 
-void addScaleCases(benchmark::Benchmark* benchmark) {
-    benchmark->ArgName("nodes");
-    for (const int nodeCount : kScaleNodeCounts) benchmark->Arg(nodeCount);
+void configureLayoutBenchmark(benchmark::Benchmark* layoutBenchmark) {
+    layoutBenchmark->Unit(benchmark::kMicrosecond)->RangeMultiplier(8)->Range(8, 4096);
 }
 
-void addRepresentativeCases(benchmark::Benchmark* benchmark) {
-    benchmark->ArgName("nodes");
-    for (const int nodeCount : kRepresentativeNodeCounts) benchmark->Arg(nodeCount);
-}
+#define BENCHMARK_CASE(functionName, caseName)                                                                                                       \
+    BENCHMARK_CAPTURE(functionName, caseName, LayoutCase::caseName)->Name(#functionName "::" #caseName)->Apply(configureLayoutBenchmark)
 
-void addStateCases(benchmark::Benchmark* benchmark) {
-    benchmark->ArgName("nodes");
-    for (const int nodeCount : kStateNodeCounts) benchmark->Arg(nodeCount);
-}
-
-void addCacheCases(benchmark::Benchmark* benchmark) {
-    benchmark->ArgName("nodes");
-    for (const int nodeCount : kCacheNodeCounts) benchmark->Arg(nodeCount);
-}
-
-void addDirectionCases(benchmark::Benchmark* benchmark) {
-    benchmark->ArgName("nodes");
-    for (const int nodeCount : kDirectionNodeCounts) benchmark->Arg(nodeCount);
-}
-
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, FlatColumn, LayoutCase::FlatColumn)->Apply(addScaleCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, FlatRow, LayoutCase::FlatRow)->Apply(addScaleCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, BalancedTree, LayoutCase::BalancedTree)->Apply(addScaleCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, FlexRow, LayoutCase::FlexRow)->Apply(addScaleCases);
-
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, Normal, LayoutCase::Normal)->Apply(addRepresentativeCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, ShortLabels, LayoutCase::ShortLabels)->Apply(addRepresentativeCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, WrappedText, LayoutCase::WrappedText)->Apply(addRepresentativeCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, CompositeControls, LayoutCase::CompositeControls)->Apply(addRepresentativeCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, HiddenLabels, LayoutCase::HiddenLabels)->Apply(addStateCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, CollapsedLabels, LayoutCase::CollapsedLabels)->Apply(addStateCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterResize, RightToLeftRow, LayoutCase::RightToLeftRow)->Apply(addDirectionCases);
-
-BENCHMARK_CAPTURE(BM_Layout_CachedLayout, FlatColumn, LayoutCase::FlatColumn)->Apply(addCacheCases);
-BENCHMARK_CAPTURE(BM_Layout_CachedLayout, WrappedText, LayoutCase::WrappedText)->Apply(addCacheCases);
-BENCHMARK_CAPTURE(BM_Layout_CachedLayout, CompositeControls, LayoutCase::CompositeControls)->Apply(addCacheCases);
-BENCHMARK_CAPTURE(BM_Layout_RelayoutAfterDirectionChange, FlatRow, LayoutCase::FlatRow)->Apply(addDirectionCases);
+BENCHMARK_CASE(BM_ComputeLayout, FlatColumn);
+BENCHMARK_CASE(BM_ComputeLayout, FlatRow);
+BENCHMARK_CASE(BM_ComputeLayout, BalancedTree);
+BENCHMARK_CASE(BM_ComputeLayout, FlexRow);
+BENCHMARK_CASE(BM_ComputeLayout, Normal);
+BENCHMARK_CASE(BM_ComputeLayout, ShortLabels);
+BENCHMARK_CASE(BM_ComputeLayout, WrappedText);
+BENCHMARK_CASE(BM_ComputeLayout, CompositeControls);
+BENCHMARK_CASE(BM_ComputeLayout, HiddenLabels);
+BENCHMARK_CASE(BM_ComputeLayout, CollapsedLabels);
+BENCHMARK_CASE(BM_CachedLayout, FlatColumn);
+BENCHMARK_CASE(BM_CachedLayout, WrappedText);
+BENCHMARK_CASE(BM_CachedLayout, CompositeControls);
+#undef BENCHMARK_CASE
+BENCHMARK(BM_DirectionChange)->Name("BM_DirectionChange")->Apply(configureLayoutBenchmark);
 } // namespace

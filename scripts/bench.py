@@ -368,6 +368,102 @@ def _benchmark_records(report: dict) -> dict[str, dict]:
     return records
 
 
+def _markdown_cell(value: object) -> str:
+    return str(value).replace("|", r"\|").replace("\r", " ").replace("\n", " ")
+
+
+def _markdown_measurement(record: dict, name: str) -> str:
+    value = record.get(name)
+    if not isinstance(value, (int, float)):
+        return ""
+    unit = record.get("time_unit", "")
+    return f"{value:.6g} {unit}".rstrip()
+
+
+def _markdown_iterations(record: dict) -> str:
+    value = record.get("iterations")
+    if not isinstance(value, (int, float)):
+        return ""
+    return f"{value:.6g}"
+
+
+def _markdown_cache_size(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return ""
+    return f"{float(value) / 1024:.6g} KiB"
+
+
+def _markdown_context(report: dict) -> list[str]:
+    context = report.get("context")
+    if not isinstance(context, dict):
+        return []
+
+    lines = []
+    num_cpus = context.get("num_cpus")
+    mhz_per_cpu = context.get("mhz_per_cpu")
+    if isinstance(num_cpus, (int, float)) and isinstance(mhz_per_cpu, (int, float)):
+        cpu_suffix = "" if num_cpus == 1 else "s"
+        lines.append(f"Run on ({num_cpus:g} X {mhz_per_cpu:g} MHz CPU{cpu_suffix})")
+
+    caches = context.get("caches")
+    if isinstance(caches, list) and caches:
+        lines.append("CPU Caches:")
+        for cache in caches:
+            if not isinstance(cache, dict):
+                continue
+            level = cache.get("level")
+            cache_type = cache.get("type")
+            size = _markdown_cache_size(cache.get("size"))
+            sharing = cache.get("num_sharing")
+            if not isinstance(level, (int, float)) or not isinstance(cache_type, str) or not size:
+                continue
+            cache_count = None
+            if (
+                isinstance(num_cpus, (int, float))
+                and num_cpus > 0
+                and isinstance(sharing, (int, float))
+                and sharing > 0
+            ):
+                cache_count = num_cpus / sharing
+            sharing_text = f" (x{cache_count:g})" if cache_count is not None else ""
+            lines.append(f"&nbsp;&nbsp;L{level:g} {cache_type} {size}{sharing_text}")
+
+    load_average = context.get("load_avg")
+    if isinstance(load_average, list):
+        values = ", ".join(f"{value:.2f}" for value in load_average if isinstance(value, (int, float)))
+        if values:
+            lines.append(f"Load Average: {values}")
+
+    return lines
+
+
+def _write_markdown_output(path: Path, reports: list[tuple[Path, dict]]) -> None:
+    rows = []
+    for _, report in reports:
+        rows.extend(_benchmark_records(report).values())
+    if not rows:
+        raise ValueError("Google Benchmark produced no timing records for Markdown output")
+
+    lines = [
+        *(f"{line}  " for line in _markdown_context(reports[0][1])),
+        "",
+        "| Benchmark | Time | CPU | Iterations |",
+        "|:--|--:|--:|--:|",
+    ]
+    for record in rows:
+        name = record.get("run_name") or record.get("name", "")
+        lines.append(
+            "| "
+            f"{_markdown_cell(name)} | "
+            f"{_markdown_measurement(record, 'real_time')} | "
+            f"{_markdown_measurement(record, 'cpu_time')} | "
+            f"{_markdown_iterations(record)} |"
+        )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _history_path(repository_root: Path, name: str) -> Path:
     return repository_root / "benchmarks" / "history" / f"{Path(name).stem}.json"
 
@@ -801,6 +897,12 @@ def _parse_args() -> tuple[argparse.Namespace, list[str]]:
         help="List discovered benchmark cases instead of running them.",
     )
     parser.add_argument(
+        "--markdown-output",
+        type=Path,
+        metavar="PATH",
+        help="Write benchmark timing results as a Markdown table to PATH.",
+    )
+    parser.add_argument(
         "--query",
         action="store_true",
         help="Query saved benchmark history without running a benchmark.",
@@ -875,13 +977,14 @@ def _parse_args() -> tuple[argparse.Namespace, list[str]]:
             parser.error("provide a benchmark name or use --all with --query")
         if (
             args.list_benchmarks
+            or args.markdown_output is not None
             or args.save
             or args.compare
             or args.fail_on_regression
             or args.description is not None
         ):
             parser.error(
-                "--query cannot be combined with --list, --save, --compare, "
+                "--query cannot be combined with --list, --markdown-output, --save, --compare, "
                 "--description, or --fail-on-regression"
             )
     else:
@@ -895,8 +998,10 @@ def _parse_args() -> tuple[argparse.Namespace, list[str]]:
             parser.error("--case-filter requires --query")
         if args.query_format != "text":
             parser.error("--query-format requires --query")
-    if args.list_benchmarks and (args.save or args.compare or args.fail_on_regression):
-        parser.error("--list cannot be combined with save or comparison options")
+    if args.list_benchmarks and (
+        args.markdown_output is not None or args.save or args.compare or args.fail_on_regression
+    ):
+        parser.error("--list cannot be combined with Markdown output, save, or comparison options")
     if args.description is not None:
         args.description = args.description.strip()
         if not args.description:
@@ -1007,6 +1112,13 @@ def main() -> int:
     except (OSError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
+
+    if args.markdown_output is not None:
+        try:
+            _write_markdown_output(args.markdown_output, reports)
+        except (OSError, TypeError, ValueError) as error:
+            print(f"error: could not write Markdown benchmark output: {error}", file=sys.stderr)
+            return 1
 
     comparison_count = 0
     regression_count = 0
