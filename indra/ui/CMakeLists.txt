@@ -169,7 +169,9 @@ target_sources(ui
     FILES ${public_sources}
 )
 
-target_include_directories(ui PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_include_directories(ui
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}"
+    PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 target_link_libraries(ui
     PUBLIC

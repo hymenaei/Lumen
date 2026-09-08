@@ -571,7 +571,7 @@ jobs:
             -DVIEWER_CHANNEL:STRING="${{ needs.setup.outputs.viewer_channel }}" \
             -DGRID:STRING="\"agni\""
 
-      - name: Build benchmarks
+      - name: Build
         working-directory: "${{ github.workspace }}/indra"
         env:
           CMAKE_PRESET_NAME: ${{ steps.configure.outputs.cmake_preset }}

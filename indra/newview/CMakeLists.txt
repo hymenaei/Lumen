@@ -2449,6 +2449,7 @@ if (BUILD_TESTING)
 #  )
 
   set(test_libs
+    ui
     llfilesystem
     llmath
     llcommon
